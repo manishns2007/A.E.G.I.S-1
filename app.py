@@ -61,13 +61,23 @@ st.sidebar.markdown("---")
 input_mode = st.sidebar.radio(
     "Select Evidence Source:",
     [
-        "🎬 Authentic Video (50 Hz Grid Hum)",
-        "🤖 Synthetic AI Video (No Grid Hum)",
-        "📷 Authentic Portrait (Symmetric Corneal Glints)",
-        "🎨 AI Diffusion Portrait (Asymmetric Corneal Glints)",
-        "📁 Upload Custom Evidence File"
-    ]
+        "📁 Upload Custom Evidence File (Your Video / Image)",
+        "🎬 Sample Authentic Video (50 Hz Grid Hum)",
+        "🤖 Sample Synthetic AI Video (No Grid Hum)",
+        "📷 Sample Authentic Portrait (Symmetric Corneal Glints)",
+        "🎨 Sample AI Diffusion Portrait (Asymmetric Corneal Glints)"
+    ],
+    index=0
 )
+
+# Handle Custom Upload in Sidebar
+sidebar_uploaded_file = None
+if "Upload Custom Evidence File" in input_mode:
+    sidebar_uploaded_file = st.sidebar.file_uploader(
+        "📥 Drag & Drop Evidence File (MP4, AVI, JPG, PNG)",
+        type=["mp4", "avi", "mov", "jpg", "png", "jpeg"],
+        key="sidebar_uploader"
+    )
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### ⚖️ CASE METADATA (BSA 2023)")
@@ -78,33 +88,31 @@ district = st.sidebar.selectbox("Jurisdiction District", ["Kochi Cyber Cell", "T
 st.sidebar.markdown("---")
 gemini_key = st.sidebar.text_input("Google Gemini API Key (Optional)", type="password", help="Optional API key for Gemini Vision VLM background parsing. Local fallback engine active if blank.")
 
-# State Management for Ingested Evidence
-if "active_file_path" not in st.session_state or st.sidebar.button("🔄 Reload Selected Evidence"):
-    if "Authentic Video" in input_mode:
-        st.session_state.active_file_path = sample_paths["auth_video"]
-        st.session_state.is_video = True
-    elif "Synthetic AI Video" in input_mode:
-        st.session_state.active_file_path = sample_paths["synth_video"]
-        st.session_state.is_video = True
-    elif "Authentic Portrait" in input_mode:
-        st.session_state.active_file_path = sample_paths["auth_image"]
-        st.session_state.is_video = False
-    elif "AI Diffusion Portrait" in input_mode:
-        st.session_state.active_file_path = sample_paths["synth_image"]
-        st.session_state.is_video = False
+# Determine Active File Path cleanly
+active_path = None
+is_video = True
 
-uploaded_file = None
-if "Upload Custom" in input_mode:
-    uploaded_file = st.sidebar.file_uploader("Upload Evidence Media (MP4, AVI, JPG, PNG)", type=["mp4", "avi", "mov", "jpg", "png", "jpeg"])
-    if uploaded_file is not None:
-        save_path = os.path.join(sample_generator.SAMPLE_DIR, uploaded_file.name)
-        with open(save_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        st.session_state.active_file_path = save_path
-        st.session_state.is_video = uploaded_file.name.lower().endswith((".mp4", ".avi", ".mov"))
-
-active_path = st.session_state.get("active_file_path", sample_paths["auth_video"])
-is_video = st.session_state.get("is_video", True)
+if sidebar_uploaded_file is not None:
+    save_path = os.path.join(sample_generator.SAMPLE_DIR, f"custom_{sidebar_uploaded_file.name}")
+    with open(save_path, "wb") as f:
+        f.write(sidebar_uploaded_file.getbuffer())
+    active_path = save_path
+    is_video = sidebar_uploaded_file.name.lower().endswith((".mp4", ".avi", ".mov"))
+elif "Authentic Video" in input_mode:
+    active_path = sample_paths["auth_video"]
+    is_video = True
+elif "Synthetic AI Video" in input_mode:
+    active_path = sample_paths["synth_video"]
+    is_video = True
+elif "Authentic Portrait" in input_mode:
+    active_path = sample_paths["auth_image"]
+    is_video = False
+elif "AI Diffusion Portrait" in input_mode:
+    active_path = sample_paths["synth_image"]
+    is_video = False
+else:
+    active_path = sample_paths["auth_video"]
+    is_video = True
 
 # Compute SHA-256 Hash of Evidence
 with open(active_path, "rb") as f:
@@ -134,7 +142,6 @@ def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str):
     if is_vid:
         results["enf"] = enf_analyzer.analyze_video_enf(file_path)
     else:
-        # If image, synthesize standard ENF summary based on file characteristics
         results["enf"] = {
             "enf_ratio": 1.0,
             "is_authentic": True,
@@ -183,7 +190,30 @@ tab_overview, tab_privacy, tab_enf, tab_corneal, tab_graph, tab_legal = st.tabs(
 
 # ==================== TAB 1: OVERVIEW & INGESTION HUB ====================
 with tab_overview:
-    st.markdown("### 📊 REAL-TIME AGENTIC FORENSIC SUMMARY")
+    st.markdown("### 📥 EVIDENCE INGESTION HUB & REAL-TIME FORENSIC SUMMARY")
+    
+    # Prominent Upload Box in Main View
+    with st.expander("📂 CLICK HERE TO UPLOAD NEW EVIDENCE FILE (MP4, AVI, JPG, PNG)", expanded=True):
+        main_uploaded_file = st.file_uploader(
+            "Upload any Video (.mp4, .avi) or Image (.jpg, .png) file to process through A.E.G.I.S. real-time pipeline:",
+            type=["mp4", "avi", "mov", "jpg", "png", "jpeg"],
+            key="main_tab_uploader"
+        )
+        if main_uploaded_file is not None:
+            save_path = os.path.join(sample_generator.SAMPLE_DIR, f"custom_{main_uploaded_file.name}")
+            with open(save_path, "wb") as f:
+                f.write(main_uploaded_file.getbuffer())
+            st.success(f"✅ Ingested custom evidence file: `{main_uploaded_file.name}`. Refreshing real-time analysis...")
+            active_path = save_path
+            is_video = main_uploaded_file.name.lower().endswith((".mp4", ".avi", ".mov"))
+            forensic_data = run_forensic_pipeline(active_path, is_video, gemini_key)
+            docket_res = legal_docket.generate_bsa_legal_docket(
+                case_id=case_id, investigator_id=officer_id, media_filename=os.path.basename(active_path),
+                media_bytes=main_uploaded_file.getvalue(), privacy_summary=forensic_data["privacy"],
+                enf_summary=forensic_data.get("enf"), corneal_summary=forensic_data.get("corneal"), vlm_summary=forensic_data.get("vlm")
+            )
+
+    st.markdown("---")
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -242,8 +272,8 @@ with tab_overview:
     with c_left:
         st.markdown("#### 📄 Ingested Evidence Details")
         st.code(f"""
-File Path: {os.path.basename(active_path)}
-Media Type: {'Video (MP4)' if is_video else 'Static Portrait Image'}
+Active File Name: {os.path.basename(active_path)}
+Media Type: {'Video (MP4/AVI)' if is_video else 'Static Image (JPG/PNG)'}
 File Size: {len(file_bytes) / 1024:.2f} KB
 SHA-256 Hash: {sha256_custody_hash}
 Jurisdiction: {district}
@@ -304,7 +334,6 @@ with tab_enf:
                 labels={"x": "Frequency (Hz)", "y": "Spectral Magnitude"},
                 title="SciPy Fast Fourier Transform (FFT) Luminance Power Spectrum"
             )
-            # Add vertical reference line at target 50 Hz frequency
             fig_fft.add_vline(x=enf.get("effective_target_freq", 50.0), line_dash="dash", line_color="#00d2ff", annotation_text="50 Hz Power Grid Peak")
             fig_fft.update_layout(paper_bgcolor="#0a0e17", plot_bgcolor="#0f172a", font=dict(color="#e2e8f0"))
             st.plotly_chart(fig_fft, use_container_width=True)
@@ -354,7 +383,6 @@ with tab_graph:
     vlm = forensic_data["vlm"]
     st.markdown(f"**Extracted Scene Environment**: `{vlm.get('scene_type', 'Indoor Scene')}` | Lighting: `{vlm.get('lighting_type', 'N/A')}`")
     
-    # Display Extracted Environmental Entities
     st.markdown("#### 📦 Extracted Background Entities & Attributes")
     obj_cols = st.columns(3)
     objs = vlm.get("environmental_objects", [])
@@ -373,7 +401,6 @@ with tab_graph:
     st.markdown("#### 🌐 Interactive NetworkX Intelligence Correlation Graph")
     st.plotly_chart(forensic_data["graph_fig"], use_container_width=True)
     
-    # Cross-Case Correlations Alert Table
     st.markdown("#### 🚨 Cross-Case Intelligence Correlations")
     corrs = forensic_data["graph_correlations"]
     if corrs:
