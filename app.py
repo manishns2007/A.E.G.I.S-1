@@ -140,13 +140,13 @@ def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str):
         
     # 2. ENF Physics Analyzer (for videos or video sample fallback)
     if is_vid:
-        results["enf"] = enf_analyzer.analyze_video_enf(file_path)
+        results["enf"] = enf_analyzer.analyze_video_enf(file_path, target_freq=50.0)
     else:
         results["enf"] = {
             "enf_ratio": 1.0,
             "is_authentic": True,
             "verdict_text": "ENF Vector Inactive for Static Still Images (Requires Video Luminance Stream)",
-            "freqs": [], "spectrum": []
+            "freqs": [], "spectrum": [], "luminance_signal": [], "time_stamps": []
         }
         
     # 3. Corneal Specular Topology Analyzer (for images or video frame crop)
@@ -312,34 +312,101 @@ with tab_privacy:
 
 # ==================== TAB 3: ENF PHYSICS ENGINE ====================
 with tab_enf:
-    st.markdown("### ⚡ ELECTRICAL NETWORK FREQUENCY (ENF) PHYSICS ANALYZER")
-    st.markdown("*Measures frame-by-frame pixel luminance oscillations using SciPy FFT & PSD to detect the 50 Hz Indian Power Grid AC frequency hum.*")
+    st.markdown("### ⚡ ELECTRICAL NETWORK FREQUENCY (ENF) PHYSICS LABORATORY")
+    st.markdown("*Measures frame-by-frame pixel luminance oscillations using SciPy FFT, PSD, and STFT Spectrograms to isolate the 50 Hz Indian Power Grid AC frequency hum.*")
     
-    enf = forensic_data["enf"]
-    if "error" in enf:
-        st.warning(f"⚠️ {enf['error']}")
+    if not is_video:
+        st.warning("⚠️ **Note**: Active evidence is a static image. ENF physics vector requires a frame-by-frame video luminance time-series stream. Select a video from the sidebar to analyze live grid frequencies.")
+    
+    # Dynamic Interactive Parameter Controls
+    st.markdown("#### 🎛️ Real-Time Interactive Physics Parameters")
+    p_col1, p_col2 = st.columns(2)
+    with p_col1:
+        target_f = st.slider("Target Grid Frequency (Hz)", min_value=40.0, max_value=70.0, value=50.0, step=0.5, help="50 Hz standard for India/Kerala AC grid lighting.")
+    with p_col2:
+        tolerance_f = st.slider("Frequency Search Band Tolerance (± Hz)", min_value=0.5, max_value=5.0, value=2.5, step=0.5)
+        
+    # Re-run ENF live with interactive parameters if video
+    if is_video:
+        enf = enf_analyzer.analyze_video_enf(active_path, target_freq=target_f, tolerance_hz=tolerance_f)
     else:
-        col_m1, col_m2, col_m3 = st.columns(3)
+        enf = forensic_data["enf"]
+        
+    if "error" in enf:
+        st.error(f"⚠️ {enf['error']}")
+    else:
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         with col_m1:
-            st.metric("ENF 50Hz Peak Power Ratio", f"{enf.get('enf_ratio', 0.0):.2f}x", delta="Authentic > 2.2x")
+            st.metric("ENF Peak Power Ratio", f"{enf.get('enf_ratio', 0.0):.2f}x", delta="Authentic >= 2.2x")
         with col_m2:
-            st.metric("Target Grid Frequency", f"{enf.get('target_freq', 50.0)} Hz")
+            st.metric("Effective Target Freq", f"{enf.get('effective_target_freq', 50.0):.1f} Hz")
         with col_m3:
+            st.metric("Sampled FPS Rate", f"{enf.get('fps', 30.0):.1f} FPS")
+        with col_m4:
             st.metric("Physics Verdict", "GRID VERIFIED" if enf.get("is_authentic") else "SYNTHETIC FLICKER MISSING")
             
+        st.markdown("---")
+        
+        # 1. Frame Luminance Waveform Plot I(t)
+        if enf.get("time_stamps") and enf.get("luminance_signal"):
+            st.markdown("#### 📈 1. Frame-by-Frame Pixel Luminance Waveform $I(t)$")
+            fig_wave = go.Figure()
+            fig_wave.add_trace(go.Scatter(
+                x=enf["time_stamps"], y=enf["luminance_signal"],
+                mode='lines', name='Raw Mean Pixel Luminance',
+                line=dict(color='#00d2ff', width=2)
+            ))
+            if enf.get("detrended_signal"):
+                fig_wave.add_trace(go.Scatter(
+                    x=enf["time_stamps"], y=enf["detrended_signal"],
+                    mode='lines', name='Detrended AC Oscillations',
+                    line=dict(color='#ffb703', width=1.5, dash='dot')
+                ))
+            fig_wave.update_layout(
+                xaxis_title="Time (seconds)", yaxis_title="Mean Spatial Luminance",
+                paper_bgcolor="#0a0e17", plot_bgcolor="#0f172a", font=dict(color="#e2e8f0"),
+                margin=dict(l=20, r=20, t=30, b=20)
+            )
+            st.plotly_chart(fig_wave, use_container_width=True)
+            
+        # 2. Fast Fourier Transform (FFT) Magnitude Spectrum
         if enf.get("freqs") and len(enf["freqs"]) > 0:
-            st.markdown("#### 📉 Fast Fourier Transform (FFT) Power Spectrum Plot")
+            st.markdown("#### 📉 2. SciPy Fast Fourier Transform (FFT) Magnitude Spectrum")
             fig_fft = px.line(
                 x=enf["freqs"], y=enf["spectrum"],
-                labels={"x": "Frequency (Hz)", "y": "Spectral Magnitude"},
-                title="SciPy Fast Fourier Transform (FFT) Luminance Power Spectrum"
+                labels={"x": "Frequency (Hz)", "y": "FFT Spectral Magnitude"},
+                title=f"Luminance Power Spectrum (Target: {target_f} Hz ± {tolerance_f} Hz)"
             )
-            fig_fft.add_vline(x=enf.get("effective_target_freq", 50.0), line_dash="dash", line_color="#00d2ff", annotation_text="50 Hz Power Grid Peak")
+            # Add shaded band around target grid frequency
+            eff_t = enf.get("effective_target_freq", 50.0)
+            fig_fft.add_vrect(
+                x0=max(0, eff_t - tolerance_f), x1=min(enf["fps"]/2, eff_t + tolerance_f),
+                fillcolor="#00d2ff", opacity=0.15, line_width=0,
+                annotation_text=f"Grid Search Band ({eff_t:.1f} Hz)", annotation_position="top left"
+            )
+            fig_fft.add_vline(x=eff_t, line_dash="dash", line_color="#00e676" if enf.get("is_authentic") else "#ff4b4b")
             fig_fft.update_layout(paper_bgcolor="#0a0e17", plot_bgcolor="#0f172a", font=dict(color="#e2e8f0"))
             st.plotly_chart(fig_fft, use_container_width=True)
             
+        # 3. STFT 2D Spectrogram Heatmap
+        if enf.get("stft_matrix") and len(enf["stft_matrix"]) > 0:
+            st.markdown("#### 🌡️ 3. SciPy Short-Time Fourier Transform (STFT) 2D Spectrogram Heatmap")
+            fig_spec = go.Figure(data=go.Heatmap(
+                z=enf["stft_matrix"],
+                x=enf["stft_times"],
+                y=enf["stft_freqs"],
+                colorscale='Viridis',
+                colorbar=dict(title='Power (dB)')
+            ))
+            fig_spec.update_layout(
+                xaxis_title="Time (seconds)", yaxis_title="Frequency (Hz)",
+                paper_bgcolor="#0a0e17", plot_bgcolor="#0f172a", font=dict(color="#e2e8f0"),
+                margin=dict(l=20, r=20, t=30, b=20)
+            )
+            st.plotly_chart(fig_spec, use_container_width=True)
+            
         st.markdown("""
-        > **Scientific Forensic Rationale**: Artificial intelligence video generators (Sora, Runway, Pika, Flux) render frames frame-by-frame or via latent noise projection without modeling real-world AC power grid electrical oscillations. Real cameras recording under grid lighting capture subtle 50 Hz / 100 Hz brightness hums that can be mathematically verified using SciPy FFT.
+        > **Scientific Forensic Rationale**: Artificial intelligence video generators (Sora, Runway, Pika, Flux) render frames frame-by-frame or via latent noise projection without modeling real-world AC power grid electrical oscillations. Real cameras recording under grid lighting capture subtle 50 Hz / 100 Hz brightness hums that can be mathematically verified using SciPy FFT and STFT.
         """)
 
 # ==================== TAB 4: CORNEAL SPECULAR TOPOLOGY ====================

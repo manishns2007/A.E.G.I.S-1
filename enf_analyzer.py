@@ -1,7 +1,8 @@
 """
 Electrical Network Frequency (ENF) Physics Analyzer for Project A.E.G.I.S.
-Extracts pixel luminance frame-by-frame from uploaded videos and applies Fast Fourier Transform (FFT)
-& Power Spectral Density (PSD) using SciPy to isolate the 50 Hz Indian Power Grid Frequency hum.
+Extracts pixel luminance frame-by-frame from uploaded videos and applies Fast Fourier Transform (FFT),
+Power Spectral Density (PSD), and Short-Time Fourier Transform (STFT) Spectrograms using SciPy 
+to isolate the 50 Hz Indian Power Grid Frequency hum.
 
 Physics Principle:
 Real camera recordings under AC electrical grid lighting capture invisible 50 Hz / 100 Hz 
@@ -13,17 +14,20 @@ import cv2
 import numpy as np
 from scipy import fftpack, signal
 
-def analyze_video_enf(video_path: str, target_freq: float = 50.0, max_frames: int = 300):
+def analyze_video_enf(video_path: str, target_freq: float = 50.0, tolerance_hz: float = 2.5, max_frames: int = 300):
     """
-    Performs FFT analysis on video luminance time-series.
+    Performs FFT & STFT Spectrogram analysis on video luminance time-series.
     
     Returns a dict with:
       - fps: sampling frequency (frames per sec)
-      - time_series: list of frame mean luminance values
+      - luminance_signal: raw luminance time-series I(t)
+      - detrended_signal: detrended luminance time-series
+      - time_stamps: list of time points in seconds
       - freqs: frequency axis (Hz)
       - spectrum: FFT magnitude spectrum
-      - peak_50hz_power: power at target 50 Hz frequency
-      - background_power: mean power in neighboring frequency band
+      - stft_times, stft_freqs, stft_matrix: 2D Spectrogram data
+      - peak_50hz_power: power at target frequency
+      - background_power: noise floor power
       - enf_ratio: ratio of 50 Hz peak power to noise floor
       - is_authentic: bool verdict
       - confidence: float score (0-100%)
@@ -47,7 +51,7 @@ def analyze_video_enf(video_path: str, target_freq: float = 50.0, max_frames: in
             
         # Convert BGR to Grayscale for mean spatial luminance extraction
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        mean_lum = np.mean(gray)
+        mean_lum = float(np.mean(gray))
         luminance_signal.append(mean_lum)
         frame_count += 1
         
@@ -57,6 +61,8 @@ def analyze_video_enf(video_path: str, target_freq: float = 50.0, max_frames: in
     if N < 15:
         return {"error": "Video duration too short for ENF FFT analysis"}
         
+    time_stamps = [i / fps for i in range(N)]
+    
     # Detrend luminance signal to remove slow illumination shifts / camera movement
     signal_detrended = signal.detrend(luminance_signal)
     
@@ -68,7 +74,6 @@ def analyze_video_enf(video_path: str, target_freq: float = 50.0, max_frames: in
     fft_vals = fftpack.fft(windowed_signal)
     fft_freqs = fftpack.fftfreq(N, d=1.0/fps)
     
-    # Take positive frequencies only
     pos_mask = fft_freqs >= 0
     freqs = fft_freqs[pos_mask]
     spectrum = np.abs(fft_vals[pos_mask])
@@ -76,17 +81,14 @@ def analyze_video_enf(video_path: str, target_freq: float = 50.0, max_frames: in
     # Nyquist limit check
     nyquist = fps / 2.0
     
-    # Find peak near 50 Hz (or 50 Hz aliased harmonic depending on camera frame rate)
-    # Note: If fps <= 50, 50 Hz aliases to |50 - fps| or harmonic |100 - fps|
     effective_target = target_freq
     if target_freq >= nyquist:
-        # Calculate aliased grid frequency under Nyquist rate
         effective_target = np.abs(target_freq - round(target_freq / fps) * fps)
         if effective_target == 0:
             effective_target = np.abs(100.0 - round(100.0 / fps) * fps)
             
-    # Search band +/- 2.5 Hz around target frequency
-    band_mask = (freqs >= max(0.5, effective_target - 2.5)) & (freqs <= min(nyquist, effective_target + 2.5))
+    # Search band +/- tolerance_hz around target frequency
+    band_mask = (freqs >= max(0.5, effective_target - tolerance_hz)) & (freqs <= min(nyquist, effective_target + tolerance_hz))
     noise_mask = (freqs >= 1.0) & (freqs <= nyquist) & (~band_mask)
     
     if np.any(band_mask) and np.any(noise_mask):
@@ -98,7 +100,10 @@ def analyze_video_enf(video_path: str, target_freq: float = 50.0, max_frames: in
         background_power = 1.0
         enf_ratio = 1.0
         
-    # Verdict threshold: ENF peak ratio > 2.2 indicates authentic power grid modulation
+    # Short-Time Fourier Transform (STFT) 2D Spectrogram via SciPy
+    nperseg = min(N // 2, 32) if N >= 32 else N
+    stft_freqs, stft_times, Sxx = signal.spectrogram(np.array(signal_detrended), fs=fps, nperseg=nperseg)
+    
     is_authentic = (enf_ratio >= 2.2)
     confidence = min(99.4, max(45.0, (enf_ratio / 3.5) * 100.0)) if is_authentic else min(98.8, max(60.0, (1.0 - enf_ratio / 2.2) * 100.0))
     
@@ -107,11 +112,18 @@ def analyze_video_enf(video_path: str, target_freq: float = 50.0, max_frames: in
     return {
         "fps": fps,
         "total_frames": N,
-        "luminance_signal": [float(x) for x in luminance_signal[:100]],
+        "duration_sec": N / fps,
+        "time_stamps": time_stamps,
+        "luminance_signal": luminance_signal,
+        "detrended_signal": [float(x) for x in signal_detrended],
         "freqs": [float(x) for x in freqs],
         "spectrum": [float(x) for x in spectrum],
+        "stft_freqs": [float(x) for x in stft_freqs],
+        "stft_times": [float(x) for x in stft_times],
+        "stft_matrix": Sxx.tolist(),
         "target_freq": target_freq,
         "effective_target_freq": float(effective_target),
+        "tolerance_hz": float(tolerance_hz),
         "peak_50hz_power": peak_50hz_power,
         "background_power": background_power,
         "enf_ratio": float(enf_ratio),
