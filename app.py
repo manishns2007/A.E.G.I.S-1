@@ -176,10 +176,20 @@ def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str, fil
     results["vlm"] = vlm_extractor.parse_background_environment(results["privacy"]["shielded_bgr"], gemini_api_key)
     
     # 5. NetworkX Knowledge Graph Compilation
-    G = knowledge_graph.build_case_knowledge_graph(case_id, results["vlm"].get("environmental_objects", []))
+    # No historical_cases argument — only current-evidence entities are graphed.
+    # historical_db_connected=False because no real external database is connected.
+    G = knowledge_graph.build_case_knowledge_graph(
+        case_id,
+        results["vlm"].get("environmental_objects", []),
+        historical_cases=None          # no fabricated cases injected
+    )
     results["graph"] = G
     results["graph_fig"] = knowledge_graph.generate_plotly_network_figure(G)
-    results["graph_correlations"] = knowledge_graph.analyze_cross_case_correlations(G, case_id)
+    results["graph_correlations"] = knowledge_graph.analyze_cross_case_correlations(
+        G, case_id,
+        historical_db_connected=False  # explicitly unavailable — no real DB connected
+    )
+    results["historical_db_connected"] = False
     
     return results
 
@@ -510,11 +520,38 @@ with tab_corneal:
 # ==================== TAB 5: KNOWLEDGE GRAPH ====================
 with tab_graph:
     st.markdown("### 🕸️ VISUO-ACOUSTIC KNOWLEDGE GRAPHING")
-    st.markdown("*Scans redacted background environments to extract furniture, textures, and fixtures, mapping them across case files using NetworkX.*")
-    
+    st.markdown("*Scans redacted background environments to extract furniture, textures, and fixtures — mapping extracted entities for the active evidence file using NetworkX.*")
+
+    # ── Historical Intelligence Status Indicator ──────────────────────────
+    hist_db_connected = forensic_data.get("historical_db_connected", False)
+    if hist_db_connected:
+        st.markdown("""
+        <div style="display:inline-flex; align-items:center; gap:10px;
+                    background:rgba(0,230,118,0.08); border:1px solid #00e676;
+                    border-radius:8px; padding:10px 18px; margin-bottom:12px;">
+            <span style="font-size:1.2rem;">🗄️</span>
+            <div>
+                <div style="color:#94a3b8; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em;">Historical Intelligence</div>
+                <div style="color:#00e676; font-weight:700; font-size:1rem;">✓ Connected</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="display:inline-flex; align-items:center; gap:10px;
+                    background:rgba(148,163,184,0.07); border:1px solid #475569;
+                    border-radius:8px; padding:10px 18px; margin-bottom:12px;">
+            <span style="font-size:1.2rem;">🗄️</span>
+            <div>
+                <div style="color:#94a3b8; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em;">Historical Intelligence</div>
+                <div style="color:#94a3b8; font-weight:700; font-size:1rem;">Unavailable</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     vlm = forensic_data["vlm"]
     st.markdown(f"**Extracted Scene Environment**: `{vlm.get('scene_type', 'Indoor Scene')}` | Lighting: `{vlm.get('lighting_type', 'N/A')}`")
-    
+
     st.markdown("#### 📦 Extracted Background Entities & Attributes")
     objs = vlm.get("environmental_objects", [])
     if len(objs) == 0:
@@ -531,14 +568,30 @@ with tab_graph:
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-            
+
     st.markdown("---")
-    st.markdown("#### 🌐 Interactive NetworkX Intelligence Correlation Graph")
+    st.markdown("#### 🌐 Interactive NetworkX Intelligence Graph (Active Evidence Only)")
     st.plotly_chart(forensic_data["graph_fig"], use_container_width=True)
-    
-    st.markdown("#### 🚨 Cross-Case Intelligence Correlations")
+
+    st.markdown("#### 🔗 Cross-Case Intelligence Correlations")
     corrs = forensic_data["graph_correlations"]
-    if corrs:
+
+    if corrs == knowledge_graph.HISTORICAL_DB_UNAVAILABLE:
+        # No real historical database is connected — show clean unavailability notice
+        st.markdown("""
+        <div style="background:rgba(148,163,184,0.07); border:1px solid #475569;
+                    border-radius:10px; padding:20px; text-align:center; margin-top:8px;">
+            <div style="font-size:1.5rem; margin-bottom:8px;">🗄️</div>
+            <div style="color:#94a3b8; font-weight:600; font-size:1rem;">
+                Historical intelligence database unavailable.
+            </div>
+            <div style="color:#64748b; font-size:0.85rem; margin-top:6px;">
+                Cross-case correlation requires a verified external historical case database.
+                No fabricated matches are shown.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    elif corrs:
         for c in corrs:
             st.error(f"⚠️ **LINK DETECTED WITH {c['case_id']}**: Shares {c['shared_count']} Environmental Entity Node(s): `{', '.join(c['shared_entities'])}`")
     else:
