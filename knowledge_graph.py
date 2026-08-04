@@ -15,9 +15,9 @@ def get_default_historical_cases():
             "date": "2025-11-14",
             "location": "Kochi Sub-District",
             "entities": [
-                "Patterned Bedsheet / Fabric",
-                "Indian Standard Power Socket (Type D/M)",
-                "Overhead Ceiling Fan"
+                "Patterned Surface / Fabric",
+                "Wall-Mounted Fixture ROI",
+                "Ceiling Fixture / Overhead Mount"
             ]
         },
         {
@@ -25,8 +25,8 @@ def get_default_historical_cases():
             "date": "2026-02-02",
             "location": "Trivandrum Central",
             "entities": [
-                "Wall Structural Anomaly",
-                "Indian Standard Power Socket (Type D/M)",
+                "Wall Structural Texture Anomaly",
+                "Wall-Mounted Fixture ROI",
                 "Teak Wood Bed Frame"
             ]
         },
@@ -35,12 +35,18 @@ def get_default_historical_cases():
             "date": "2026-05-19",
             "location": "Kozhikode North",
             "entities": [
-                "Patterned Bedsheet / Fabric",
-                "Wall Structural Anomaly",
+                "Patterned Surface / Fabric",
+                "Wall Structural Texture Anomaly",
                 "Blue Floral Curtain"
             ]
         }
     ]
+
+def normalize_entity_name(raw_name: str) -> str:
+    """Normalizes live computed entity strings for NetworkX graph node matching."""
+    if "(" in raw_name:
+        return raw_name.split("(")[0].strip()
+    return raw_name.strip()
 
 def build_case_knowledge_graph(current_case_id: str, current_entities: list, historical_cases: list = None):
     """
@@ -56,19 +62,21 @@ def build_case_knowledge_graph(current_case_id: str, current_entities: list, his
     
     # Add current case entities
     for ent in current_entities:
-        ent_name = ent["entity"] if isinstance(ent, dict) else str(ent)
-        if not G.has_node(ent_name):
-            G.add_node(ent_name, type="environmental_entity", label=ent_name, color="#ffb703", size=16)
-        G.add_edge(current_case_id, ent_name, weight=2)
+        raw_name = ent["entity"] if isinstance(ent, dict) else str(ent)
+        norm_name = normalize_entity_name(raw_name)
+        if not G.has_node(norm_name):
+            G.add_node(norm_name, type="environmental_entity", label=norm_name, color="#ffb703", size=16)
+        G.add_edge(current_case_id, norm_name, weight=2)
         
     # Add historical cases
     for case in historical_cases:
         c_id = case["case_id"]
         G.add_node(c_id, type="historical_case", label=f"HIST: {c_id}", color="#94a3b8", size=18)
         for ent_name in case["entities"]:
-            if not G.has_node(ent_name):
-                G.add_node(ent_name, type="environmental_entity", label=ent_name, color="#ffb703", size=16)
-            G.add_edge(c_id, ent_name, weight=1)
+            norm_hist = normalize_entity_name(ent_name)
+            if not G.has_node(norm_hist):
+                G.add_node(norm_hist, type="environmental_entity", label=norm_hist, color="#ffb703", size=16)
+            G.add_edge(c_id, norm_hist, weight=1)
             
     return G
 
