@@ -13,6 +13,7 @@ const AGENT_CARDS = [
   { key: 'enf',           label: 'ENF Physics',          icon: Zap,       color: 'text-yellow-400', border: 'border-yellow-400/20', bg: 'bg-yellow-400/5' },
   { key: 'corneal',       label: 'Corneal Topology',     icon: Eye,       color: 'text-blue-400', border: 'border-blue-400/20', bg: 'bg-blue-400/5' },
   { key: 'vision',        label: 'Vision Intelligence',  icon: Eye,       color: 'text-purple-400', border: 'border-purple-400/20', bg: 'bg-purple-400/5' },
+  { key: 'risk',          label: 'Risk Assessment',      icon: AlertTriangle, color: 'text-red-400', border: 'border-red-400/20', bg: 'bg-red-400/5' },
   { key: 'fusion',        label: 'Intelligence Fusion',  icon: Target,    color: 'text-pink-400', border: 'border-pink-400/20', bg: 'bg-pink-400/5' },
   { key: 'graph',         label: 'Knowledge Graph',      icon: GitBranch, color: 'text-green-400',  border: 'border-green-400/20',  bg: 'bg-green-400/5' },
   { key: 'legal_report',  label: 'Legal Report',         icon: FileText,  color: 'text-orange-400', border: 'border-orange-400/20', bg: 'bg-orange-400/5' },
@@ -40,6 +41,8 @@ const getKeyFinding = (key: string, agent: any): string => {
       return f.verdict_badge ?? 'Synthesis complete';
     case 'graph':
       return f.historical_db_connected ? 'Graph with historical links' : 'Isolated case graph compiled';
+    case 'risk':
+      return `Risk Level: ${f.risk_level ?? 'UNKNOWN'}`;
     case 'legal_report':
       return f.verdict_badge ?? 'Report generated';
     default:
@@ -73,7 +76,7 @@ const Results = () => {
     );
   }
 
-  const { privacy, enf, corneal, vision, fusion, graph, legal_report } = data;
+  const { privacy, enf, corneal, vision, graph, risk, fusion, legal_report } = data;
   const isAuthentic = legal_report?.output?.is_authentic;
 
   return (
@@ -262,6 +265,36 @@ const Results = () => {
                 <p className="text-xs text-textMuted uppercase tracking-wider mb-2 font-semibold">Forensic Explanation</p>
                 <ul className="space-y-1">
                   {corneal.output.explanation.slice(0, 5).map((exp: string, i: number) => (
+                    <li key={i} className="text-xs text-secondary leading-relaxed">· {exp}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          
+          {/* Risk Assessment */}
+          <div className="card md:col-span-2">
+            <div className="flex items-center space-x-3 mb-4">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
+              <h3 className="font-bold text-textMain">Risk Assessment Agent</h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="metric-card">
+                <div className="metric-label">Risk Level</div>
+                <div className={`metric-value text-sm ${risk?.output?.risk_level === 'LOW' ? 'text-success' : risk?.output?.risk_level === 'MEDIUM' ? 'text-yellow-400' : 'text-danger'}`}>
+                  {risk?.output?.risk_level ?? 'UNAVAILABLE'}
+                </div>
+              </div>
+              <div className="metric-card">
+                <div className="metric-label">Confidence</div>
+                <div className="metric-value">{risk?.confidence?.toFixed(1) ?? '0.0'}%</div>
+              </div>
+            </div>
+            {risk?.output?.risk_factors?.length > 0 && (
+              <div className="mt-4 bg-surfaceHover border border-border rounded p-4">
+                <p className="text-xs text-textMuted uppercase tracking-wider mb-2 font-semibold">Risk Factors Identified</p>
+                <ul className="space-y-1">
+                  {risk.output.risk_factors.map((exp: string, i: number) => (
                     <li key={i} className="text-xs text-secondary leading-relaxed">· {exp}</li>
                   ))}
                 </ul>
