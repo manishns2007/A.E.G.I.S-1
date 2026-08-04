@@ -65,7 +65,7 @@ class BaseAgent(ABC):
 
     def validate_output(self, output: Dict[str, Any]) -> bool:
         """Validates that output dictionary conforms to the standard agent structure."""
-        required = {"agent", "status", "processing_time", "confidence", "input", "output", "reasoning", "error"}
+        required = {"agent", "status", "processing_time", "confidence", "input", "output", "reasoning", "recommend_next", "error"}
         return isinstance(output, dict) and required.issubset(output.keys())
 
     def format_response(
@@ -76,6 +76,7 @@ class BaseAgent(ABC):
         input_data: Dict[str, Any],
         output_data: Dict[str, Any],
         reasoning: List[str],
+        recommend_next: List[str] = None,
         error: Optional[str] = None
     ) -> Dict[str, Any]:
         """Utility method to assemble standard A.E.G.I.S. agent response dictionaries."""
@@ -87,5 +88,6 @@ class BaseAgent(ABC):
             "input": input_data,
             "output": output_data,
             "reasoning": reasoning,
+            "recommend_next": recommend_next or [],
             "error": error
         }
