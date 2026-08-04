@@ -1,169 +1,276 @@
-/* Cyberdome Dark Tactical Theme for Project A.E.G.I.S. */
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
 
 :root {
-    --bg-primary: #0a0e17;
-    --bg-secondary: #121824;
-    --bg-card: #1a2233;
-    --accent-blue: #00d2ff;
+    --bg-primary: #05070e;
+    --bg-secondary: #0a0e17;
+    --bg-card: rgba(15, 23, 42, 0.6);
+    --bg-card-hover: rgba(15, 23, 42, 0.8);
+    --accent-blue: #00f0ff;
+    --accent-blue-dim: rgba(0, 240, 255, 0.2);
     --accent-gold: #ffb703;
-    --accent-red: #ff4b4b;
-    --accent-green: #00e676;
-    --text-primary: #e2e8f0;
+    --accent-gold-dim: rgba(255, 183, 3, 0.2);
+    --accent-red: #ff3366;
+    --accent-green: #00ff9d;
+    --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
-    --border-color: #2a364f;
+    --border-color: rgba(42, 54, 79, 0.5);
+    --border-highlight: rgba(0, 240, 255, 0.5);
 }
 
+/* Global Typography & Background */
 body, .stApp {
     background-color: var(--bg-primary) !important;
+    background-image: 
+        radial-gradient(circle at 15% 50%, rgba(0, 240, 255, 0.03) 0%, transparent 50%),
+        radial-gradient(circle at 85% 30%, rgba(255, 51, 102, 0.03) 0%, transparent 50%);
     color: var(--text-primary) !important;
-    font-family: 'Inter', sans-serif !important;
+    font-family: 'Outfit', sans-serif !important;
 }
 
 /* Sidebar styling */
 [data-testid="stSidebar"] {
-    background-color: var(--bg-secondary) !important;
+    background-color: rgba(5, 7, 14, 0.8) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-right: 1px solid var(--border-color) !important;
+    box-shadow: 5px 0 25px rgba(0, 0, 0, 0.5);
 }
 
-/* Headers */
+[data-testid="stSidebarNav"] {
+    display: none; /* Hide default nav if present */
+}
+
+/* Headings */
 h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', sans-serif !important;
+    font-family: 'Outfit', sans-serif !important;
     font-weight: 700 !important;
-    letter-spacing: -0.02em !important;
+    letter-spacing: -0.01em !important;
+    text-transform: uppercase;
 }
 
-/* Tactical Banner */
-.tactical-header {
-    background: linear-gradient(135deg, #0d1b2a 0%, #1b263b 50%, #415a77 100%);
-    border: 1px solid #00d2ff55;
-    border-radius: 12px;
-    padding: 24px;
+h3 {
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
     margin-bottom: 24px;
-    box-shadow: 0 8px 32px rgba(0, 210, 255, 0.1);
+    font-size: 1.4rem;
+    letter-spacing: 0.1em !important;
+}
+
+/* Premium Tactical Banner */
+.tactical-header {
+    background: linear-gradient(135deg, rgba(13, 27, 42, 0.8) 0%, rgba(27, 38, 59, 0.8) 50%, rgba(65, 90, 119, 0.8) 100%);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-highlight);
+    border-radius: 16px;
+    padding: 32px 40px;
+    margin-bottom: 32px;
+    box-shadow: 0 10px 40px rgba(0, 240, 255, 0.15), inset 0 0 20px rgba(0, 240, 255, 0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+.tactical-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
+    opacity: 0.7;
 }
 
 .tactical-title {
-    font-size: 2.2rem;
+    font-size: 2.8rem;
     font-weight: 800;
     color: #ffffff;
     margin: 0;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
+    text-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+    letter-spacing: 0.05em;
 }
 
 .tactical-subtitle {
     color: var(--accent-blue);
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.95rem;
-    margin-top: 6px;
-    letter-spacing: 0.05em;
+    font-size: 1rem;
+    margin-top: 12px;
+    letter-spacing: 0.08em;
+    font-weight: 600;
 }
 
-/* Card metrics */
+/* Glassmorphism Metric Cards */
 .metric-card {
     background: var(--bg-card);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border: 1px solid var(--border-color);
-    border-radius: 10px;
-    padding: 16px 20px;
-    margin-bottom: 12px;
-    transition: transform 0.2s, border-color 0.2s;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.metric-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--border-color);
+    transition: all 0.3s ease;
 }
 
 .metric-card:hover {
-    border-color: var(--accent-blue);
-    transform: translateY(-2px);
+    background: var(--bg-card-hover);
+    border-color: var(--border-highlight);
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(0, 240, 255, 0.1);
+}
+
+.metric-card:hover::after {
+    background: var(--accent-blue);
+    box-shadow: 0 0 10px var(--accent-blue);
 }
 
 .metric-label {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 4px;
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
+    font-weight: 600;
 }
 
 .metric-value {
-    font-size: 1.6rem;
-    font-weight: 700;
+    font-size: 1.8rem;
+    font-weight: 800;
     font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.02em;
 }
 
+/* Status Colors with Glow */
 .metric-status-safe {
     color: var(--accent-green);
+    text-shadow: 0 0 10px rgba(0, 255, 157, 0.3);
 }
 
 .metric-status-threat {
     color: var(--accent-red);
+    text-shadow: 0 0 10px rgba(255, 51, 102, 0.3);
 }
 
 .metric-status-warning {
     color: var(--accent-gold);
+    text-shadow: 0 0 10px rgba(255, 183, 3, 0.3);
 }
 
-/* Code & Terminal Blocks */
+/* Terminal / Code Blocks */
 .terminal-block {
-    background-color: #050811;
+    background-color: rgba(5, 7, 14, 0.9);
     border: 1px solid var(--border-color);
+    border-left: 3px solid var(--accent-blue);
     border-radius: 8px;
-    padding: 16px;
+    padding: 16px 20px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: #00ffaa;
-    line-height: 1.5;
+    font-size: 0.9rem;
+    color: var(--accent-green);
+    line-height: 1.6;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
 }
 
 /* Status Badges */
+.badge-authentic, .badge-synthetic {
+    padding: 8px 16px;
+    border-radius: 30px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .badge-authentic {
-    background-color: rgba(0, 230, 118, 0.15);
-    color: #00e676;
-    border: 1px solid #00e676;
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    display: inline-block;
+    background-color: rgba(0, 255, 157, 0.1);
+    color: var(--accent-green);
+    border: 1px solid rgba(0, 255, 157, 0.3);
+    box-shadow: 0 0 15px rgba(0, 255, 157, 0.1);
 }
 
 .badge-synthetic {
-    background-color: rgba(255, 75, 75, 0.15);
-    color: #ff4b4b;
-    border: 1px solid #ff4b4b;
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    display: inline-block;
+    background-color: rgba(255, 51, 102, 0.1);
+    color: var(--accent-red);
+    border: 1px solid rgba(255, 51, 102, 0.3);
+    box-shadow: 0 0 15px rgba(255, 51, 102, 0.1);
 }
 
-/* Custom tab styling */
+/* Custom Tabs - Cyberpunk Style */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-    background-color: var(--bg-secondary);
-    padding: 6px;
-    border-radius: 10px;
+    gap: 12px;
+    background-color: rgba(10, 14, 23, 0.6);
+    backdrop-filter: blur(10px);
+    padding: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
 }
 
 .stTabs [data-baseweb="tab"] {
     border-radius: 8px !important;
-    padding: 10px 18px !important;
+    padding: 12px 20px !important;
     font-weight: 600 !important;
+    font-size: 0.95rem !important;
     color: var(--text-secondary) !important;
+    transition: all 0.2s ease;
+    border: 1px solid transparent !important;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    color: var(--text-primary) !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
 .stTabs [aria-selected="true"] {
     background-color: var(--bg-card) !important;
     color: var(--accent-blue) !important;
-    border: 1px solid var(--border-color) !important;
+    border: 1px solid var(--border-highlight) !important;
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.1);
 }
 
 /* BSA Certificate Box */
 .legal-certificate {
-    background: #0d1525;
-    border: 2px solid var(--accent-gold);
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 0 20px rgba(255, 183, 3, 0.1);
+    background: linear-gradient(180deg, rgba(13, 21, 37, 0.9) 0%, rgba(10, 14, 23, 0.9) 100%);
+    border: 1px solid var(--accent-gold);
+    border-top: 4px solid var(--accent-gold);
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 10px 30px rgba(255, 183, 3, 0.08);
+    position: relative;
+}
+
+/* Streamlit specific overrides for a cleaner look */
+.stExpander {
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    background: rgba(10, 14, 23, 0.5) !important;
+}
+
+.stButton>button {
+    background: linear-gradient(90deg, rgba(0,240,255,0.1), rgba(0,240,255,0.2)) !important;
+    border: 1px solid var(--accent-blue) !important;
+    color: var(--accent-blue) !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+}
+
+.stButton>button:hover {
+    background: var(--accent-blue) !important;
+    color: #000 !important;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.4) !important;
+    transform: translateY(-2px);
 }
