@@ -1,0 +1,101 @@
+# Implementation Plan: Project A.E.G.I.S. (Agentic Environmental Graphing & Intelligence System)
+
+Project **A.E.G.I.S.** is a pitch-ready, real-time working prototype built for the **Hac'KP 2026 Kerala Police Cyberdome Hackathon** under the **Agentic Child Protection Investigation Assistant (ACPIA)** track. 
+
+The core mission of A.E.G.I.S. is to revolutionize digital forensics: **shifting away from traumatizing victim pixel-matching toward analyzing invisible environmental physics and spatial geometry** to automatically detect AI-generated/synthetic media and cross-correlate real-world criminal threats while maintaining full compliance with **Section 63 of the Bharatiya Sakshya Adhiniyam (BSA), 2023** for legal admissibility.
+
+---
+
+## Technical Architecture & Core Modules
+
+1. **Automated Agentic Privacy Shield (`privacy_shield.py`)**
+   - Implements immediate face and body blurring using MediaPipe Face Detection & Pose / OpenCV Haar Cascade fallback upon file ingestion.
+   - Preserves 100% of background environmental details while censoring human subjects to safeguard investigator mental health.
+
+2. **Electrical Network Frequency (ENF) Physics Analyzer (`enf_analyzer.py`)**
+   - Processes video frame-by-frame, extracting mean spatial luminance time-series signals.
+   - Computes Fast Fourier Transform (FFT) and Power Spectral Density (PSD) via `scipy.fft` & `scipy.signal` to isolate the **50 Hz grid frequency hum** (Indian power grid standard).
+   - If 50 Hz peak / harmonic ratio is absent or anomalous, flags video as **Synthetic AI Diffusion Fabrication**. If present, authenticates real-world recording.
+
+3. **Corneal Specular Topology Analyzer (`corneal_analyzer.py`)**
+   - Detects eye regions using MediaPipe Face Mesh landmarks in high-res static images and multi-frame vertical layouts.
+   - Isolates left and right corneal specular light reflections (glints) using adaptive thresholding and contour moments.
+   - Calculates 2D shape descriptors, surface area ratio, and reflection symmetry confidence index to detect asymmetric, physically impossible diffusion-model light artifacts.
+
+4. **Visuo-Acoustic Knowledge Graphing (`vlm_extractor.py` & `knowledge_graph.py`)**
+   - Uses Google Gemini 2.5/1.5 Flash Vision API (with structured fallback parser) to scan the **redacted background environment** (bedsheets, wall patterns, electrical outlets, ceiling fans, furniture, architectural fixtures).
+   - Outputs JSON entities & spatial attributes.
+   - Constructs multi-case knowledge graph using **NetworkX** and **PyVis/Plotly** to correlate disparate case files visually.
+
+5. **BSA 2023 Section 63 Legal Docket Generator (`legal_docket.py`)**
+   - Generates SHA-256 cryptographic chain-of-custody hashes for ingested files and processing logs.
+   - Formats a plain-English, court-admissible forensic docket under **Section 63 of the Bharatiya Sakshya Adhiniyam (BSA), 2023**.
+
+6. **Interactive Dashboard (`app.py` & `components/`)**
+   - Built with **Streamlit** featuring a sleek Kerala Police Cyberdome Tactical Dark Theme (`style.css`).
+   - Includes full live interactive tabs, sample test assets (authentic vs synthetic video & image samples generated algorithmically on-the-fly), and real-time execution feedback.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> - **Real-Time Physics & Computer Vision Pipeline**: All calculations (SciPy FFT for ENF, OpenCV/MediaPipe eye specular contour analysis, NetworkX graph compilation, and Cryptographic SHA-256 hashing) run live on uploaded media files. No hardcoded mock responses are used.
+> - **API Key Handling**: Optional Google Gemini API key field is provided in the UI for real-time VLM parsing. If no API key is provided, an intelligent, deterministic local VLM background parser executes seamlessly so the live demo never fails.
+
+---
+
+## Open Questions
+
+- None. Requirements are fully specified and all modules will be scaffolded cleanly in Python.
+
+---
+
+## Proposed Changes
+
+### Core System & Libraries
+
+#### [NEW] [app.py](file:///c:/Users/NEELS/Desktop/A.E.G.I.S/app.py)
+- Main Streamlit application entry point. Configures page layout, dark cyberdome theme, sidebar navigation, file uploads, sample dataset pre-loader, and tabbed dashboard views.
+
+#### [NEW] [privacy_shield.py](file:///c:/Users/NEELS/Desktop/A.E.G.I.S/privacy_shield.py)
+- MediaPipe Face Mesh & OpenCV automated privacy shield module. Automatically blurs human faces and bodies while preserving background details.
+
+#### [NEW] [enf_analyzer.py](file:///c:/Users/NEELS/Desktop/A.E.G.I.S/enf_analyzer.py)
+- ENF analyzer module. Performs frame-by-frame luminance extraction, SciPy FFT frequency spectrum analysis, 50 Hz power grid peak isolation, and signal power spectrum plotting.
+
+#### [NEW] [corneal_analyzer.py](file:///c:/Users/NEELS/Desktop/A.E.G.I.S/corneal_analyzer.py)
+- Corneal specular topology module. Extracts left & right eye bounding boxes, isolates corneal light reflection glints, computes shape/area feature vectors, and measures reflection symmetry score.
+
+#### [NEW] [vlm_extractor.py](file:///c:/Users/NEELS/Desktop/A.E.G.I.S/vlm_extractor.py)
+- Background environmental feature extraction module using Google Gemini Vision API with local fallback rule engine for redacted images.
+
+#### [NEW] [knowledge_graph.py](file:///c:/Users/NEELS/Desktop/A.E.G.I.S/knowledge_graph.py)
+- NetworkX graph module. Manages case nodes, environmental feature nodes, edge connections, and cross-case correlation matrix generation.
+
+#### [NEW] [legal_docket.py](file:///c:/Users/NEELS/Desktop/A.E.G.I.S/legal_docket.py)
+- BSA 2023 Section 63 compliant legal report generator. Creates cryptographic custody proof, plain-English forensic breakdown, and downloadable HTML/Markdown certificate.
+
+#### [NEW] [sample_generator.py](file:///c:/Users/NEELS/Desktop/A.E.G.I.S/sample_generator.py)
+- Utility script that creates synthetic vs authentic test samples (videos with/without 50 Hz luminance hum, images with matching/mismatched corneal reflections) so judges can test the system immediately without external files.
+
+#### [NEW] [style.css](file:///c:/Users/NEELS/Desktop/A.E.G.I.S/style.css)
+- Custom CSS styling for Kerala Police Cyberdome dark tactical UI theme.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Test module importability & execution via Python runner script:
+  `python -c "import app, privacy_shield, enf_analyzer, corneal_analyzer, vlm_extractor, knowledge_graph, legal_docket"`
+- Run sample generation script to verify synthetic video and corneal image synthesis:
+  `python sample_generator.py`
+- Test ENF FFT frequency detection on generated video sample.
+- Test Corneal Specular Topology calculation on generated eye sample.
+
+### Manual Verification
+- Launch Streamlit dashboard:
+  `streamlit run app.py`
+- Navigate through all tabs (Overview, Privacy Shield, ENF Physics Analyzer, Corneal Topology Analyzer, Visuo-Acoustic Knowledge Graph, BSA 2023 Legal Docket).
+- Verify real-time processing of user uploaded and pre-loaded sample files.
