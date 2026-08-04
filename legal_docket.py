@@ -94,20 +94,28 @@ def generate_bsa_legal_docket(case_id: str, investigator_id: str, media_filename
             </p>
         </div>
 
-        <h4 style="color: #00d2ff; border-bottom: 1px solid #2a364f; padding-bottom: 6px;">1. AGENTIC PRIVACY SHIELD & MENTAL HEALTH PROTECTION LOG</h4>
+        <h4 style="color: #00d2ff; border-bottom: 1px solid #2a364f; padding-bottom: 6px;">1. PROCESSING METADATA & CHAIN OF CUSTODY</h4>
         <p style="font-size: 0.9rem; color: #cbd5e1;">
-            - Human Subject Blurring Status: <b>ACTIVE</b> ({privacy_summary.get('count', 0)} Human subjects redacted)<br>
-            - Environmental Context Retention: <b>100% Background Evidence Preserved</b>
+            - Ingestion Timestamp: <b>{timestamp_str}</b><br>
+            - Investigator ID: <b>{investigator_id}</b><br>
+            - Cryptographic Hash (SHA-256): <b style="font-family: monospace; color: #00ffaa;">{sha256_hash}</b>
         </p>
 
-        <h4 style="color: #00d2ff; border-bottom: 1px solid #2a364f; padding-bottom: 6px;">2. PHYSICAL & ENVIRONMENTAL FORENSIC VECTORS</h4>
+        <h4 style="color: #00d2ff; border-bottom: 1px solid #2a364f; padding-bottom: 6px;">2. TECHNICAL FORENSIC FINDINGS (DETERMINISTIC)</h4>
         <ul style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.6;">
-            <li><b>Electrical Network Frequency (ENF) Spectrum:</b> {enf_summary.get('verdict_text', 'No evidence available')} (Peak Power Ratio: {enf_summary.get('enf_ratio', 0.0):.2f})</li>
-            <li><b>Corneal Specular Topology:</b> {corneal_summary.get('verdict_text', 'No evidence available')} (Reflection Symmetry Score: {corneal_summary.get('symmetry_score', 0.0):.1f}%)</li>
-            <li><b>Visuo-Acoustic Knowledge Graphing:</b> {len(vlm_summary.get('environmental_objects', []))} Background Environmental Objects Extracted into Intelligence Graph</li>
+            <li><b>Automated Privacy Shield:</b> ACTIVE ({privacy_summary.get('count', 0)} Human subjects redacted)</li>
+            <li><b>Electrical Network Frequency (ENF) Spectrum:</b> {enf_summary.get('verdict_text', 'Unavailable')} (Peak Power Ratio: {enf_summary.get('enf_ratio', 0.0):.2f})</li>
+            <li><b>Corneal Specular Topology:</b> {corneal_summary.get('verdict_text', 'Unavailable')} (Reflection Symmetry Score: {corneal_summary.get('symmetry_score', 0.0):.1f}%)</li>
+        </ul>
+        
+        <h4 style="color: #00d2ff; border-bottom: 1px solid #2a364f; padding-bottom: 6px;">3. AI-ASSISTED SCENE INTERPRETATION (VLM)</h4>
+        <ul style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.6;">
+            <li><b>Semantic Model:</b> Gemini Vision</li>
+            <li><b>Extracted Scene Type:</b> {vlm_summary.get('scene_type', 'Unavailable')}</li>
+            <li><b>Identified Environmental Objects:</b> {len(vlm_summary.get('environmental_objects', []))} extracted entities mapped to Knowledge Graph</li>
         </ul>
 
-        <h4 style="color: #00d2ff; border-bottom: 1px solid #2a364f; padding-bottom: 6px;">3. SECTION 63 BSA 2023 STATUTORY DECLARATION</h4>
+        <h4 style="color: #00d2ff; border-bottom: 1px solid #2a364f; padding-bottom: 6px;">4. SECTION 63 BSA 2023 STATUTORY DECLARATION</h4>
         <p style="font-size: 0.85rem; color: #94a3b8; font-style: italic; line-height: 1.5;">
             "I hereby certify that the electronic record described above was processed by the automated Agentic Environmental Graphing & Intelligence System (A.E.G.I.S.) during regular operational workflow. The cryptographic SHA-256 hash confirms zero tampering post-ingestion. All computer vision and spectral physics calculations were performed without manual bias."
         </p>

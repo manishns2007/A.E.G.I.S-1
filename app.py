@@ -131,71 +131,31 @@ sha256_custody_hash = legal_docket.compute_sha256(file_bytes)
 st.cache_data.clear()
 
 # Execute Core Forensic Modules in Real-Time for the resolved active evidence file
+import pipeline_orchestrator
+
 @st.cache_data(show_spinner="Executing Real-Time Multi-Signal Agentic Pipeline...")
 def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str, file_mtime: float):
+    raw_results = pipeline_orchestrator.run_pipeline(file_path, is_vid, gemini_api_key, case_id)
+    
+    # Map to old structure to strictly preserve frontend compatibility
     results = {}
+    results["privacy"] = raw_results["privacy"]["findings"]
+    results["enf"] = raw_results["enf"]["findings"]
+    results["corneal"] = raw_results["corneal"]["findings"]
+    results["vlm"] = raw_results["vlm"]["findings"]
     
-    # 1. Privacy Shield Execution
-    if not is_vid:
-        img_bgr = cv2.imread(file_path)
-        shielded_bgr, face_count, bboxes = privacy_shield.apply_privacy_shield_to_image(img_bgr)
-        results["privacy"] = {
-            "count": face_count,
-            "img_bgr": img_bgr,
-            "shielded_bgr": shielded_bgr,
-            "shielded_vid_path": None
-        }
+    # NetworkX graph and correlations
+    if "graph_fig" in raw_results["graph"]["findings"]:
+        results["graph_fig"] = raw_results["graph"]["findings"]["graph_fig"]
+        results["graph_correlations"] = raw_results["graph"]["findings"].get("graph_correlations", [])
+        results["historical_db_connected"] = raw_results["graph"]["findings"].get("historical_db_connected", False)
     else:
-        out_vid = os.path.join(sample_generator.SAMPLE_DIR, f"shielded_{os.path.basename(file_path)}")
-        shielded_vid, face_count = privacy_shield.apply_privacy_shield_to_video(file_path, out_vid)
-        cap = cv2.VideoCapture(file_path)
-        ret, frame = cap.read()
-        cap.release()
-        shielded_bgr, _, _ = privacy_shield.apply_privacy_shield_to_image(frame)
-        results["privacy"] = {
-            "count": face_count,
-            "img_bgr": frame,
-            "shielded_bgr": shielded_bgr,
-            "shielded_vid_path": out_vid
-        }
+        results["graph_fig"] = go.Figure()
+        results["graph_correlations"] = []
+        results["historical_db_connected"] = False
         
-    # 2. ENF Physics Analyzer
-    if is_vid:
-        results["enf"] = enf_analyzer.analyze_video_enf(file_path, target_freq=50.0)
-    else:
-        results["enf"] = {
-            "is_enf_available": False,
-            "enf_ratio": 1.0,
-            "is_authentic": True,
-            "verdict_text": "ENF unavailable",
-            "reason": "No evidence available for ENF grid frequency estimation (Static image input)",
-            "freqs": [], "spectrum": [], "luminance_signal": [], "time_stamps": []
-        }
-        
-    # 3. Multi-Signal Corneal Specular Topology Engine with Quality Filter
-    img_for_corneal = cv2.imread(file_path) if not is_vid else results["privacy"]["img_bgr"]
-    results["corneal"] = corneal_analyzer.analyze_corneal_specular_topology(img_for_corneal, file_path=file_path)
-    
-    # 4. Visuo-Acoustic Knowledge Graphing (VLM background extraction)
-    results["vlm"] = vlm_extractor.parse_background_environment(results["privacy"]["shielded_bgr"], gemini_api_key)
-    
-    # 5. NetworkX Knowledge Graph Compilation
-    # historical_cases=None  —  no fabricated cases injected.
-    # historical_db_connected=False  — no real external DB is connected.
-    G = knowledge_graph.build_case_knowledge_graph(
-        case_id,
-        results["vlm"].get("environmental_objects", []),
-        None          # no fabricated historical_cases
-    )
-    # NOTE: G (nx.Graph) is intentionally NOT stored in results; NetworkX graphs
-    # are not serialisable by st.cache_data. Only the Plotly figure (serialisable)
-    # and the correlations list are kept.
-    results["graph_fig"] = knowledge_graph.generate_plotly_network_figure(G)
-    # Pass False positionally — avoids keyword-arg version mismatch during hot-reload
-    results["graph_correlations"] = knowledge_graph.analyze_cross_case_correlations(
-        G, case_id, False
-    )
-    results["historical_db_connected"] = False
+    # Attach raw orchestration metrics for UI display
+    results["_performance_metrics"] = raw_results
     
     return results
 
@@ -317,7 +277,23 @@ Jurisdiction: {district}
         - **Vector 4**: Visuo-Acoustic Knowledge Graphing (Background Feature Extraction)
         - **Vector 5**: BSA 2023 Section 63 Dynamic Legal Docket
         """)
-
+        
+    st.markdown("---")
+    st.markdown("### ⏱️ PIPELINE PERFORMANCE PROFILER")
+    perf = forensic_data.get("_performance_metrics", {})
+    if perf:
+        p_cols = st.columns(len(perf))
+        for idx, (mod_name, metrics) in enumerate(perf.items()):
+            with p_cols[idx]:
+                status_color = "#00e676" if metrics["status"] == "success" else "#ffb703" if metrics["status"] == "warning" else "#ff4b4b"
+                st.markdown(f"""
+                <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; border-top: 3px solid {status_color};">
+                    <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">{mod_name}</div>
+                    <div style="font-size: 1.2rem; font-weight: bold; color: #e2e8f0;">{metrics['processing_time']:.2f}s</div>
+                    <div style="font-size: 0.75rem; color: {status_color};">{metrics['status'].upper()}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
 # ==================== TAB 2: PRIVACY SHIELD ====================
 with tab_privacy:
     st.markdown("### 🙈 AUTOMATED AGENTIC PRIVACY SHIELD")
@@ -374,13 +350,36 @@ with tab_enf:
     else:
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         with col_m1:
-            st.metric("ENF Peak Power Ratio", f"{enf.get('enf_ratio', 0.0):.2f}x", delta="Authentic >= 2.2x")
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">ENF Peak/Noise Ratio</div>
+                <div class="metric-value metric-status-warning">{enf.get('enf_ratio', 1.0):.2f}</div>
+                <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:4px;">&gt; 5.0 Threshold</div>
+            </div>
+            """, unsafe_allow_html=True)
         with col_m2:
-            st.metric("Effective Target Freq", f"{enf.get('effective_target_freq', 50.0):.1f} Hz")
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">Analyzed AV Frames</div>
+                <div class="metric-value">{len(enf.get('time_stamps', []))} frames</div>
+            </div>
+            """, unsafe_allow_html=True)
         with col_m3:
-            st.metric("Sampled FPS Rate", f"{enf.get('fps', 30.0):.1f} FPS")
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">Sampled FPS Rate</div>
+                <div class="metric-value">{enf.get('fps', 30.0):.1f} FPS</div>
+            </div>
+            """, unsafe_allow_html=True)
         with col_m4:
-            st.metric("Physics Verdict", "GRID VERIFIED" if enf.get("is_authentic") else "SYNTHETIC FLICKER MISSING")
+            v_text = "GRID VERIFIED" if enf.get("is_authentic") else "FLICKER MISSING"
+            v_color = "metric-status-safe" if enf.get("is_authentic") else "metric-status-threat"
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">Physics Verdict</div>
+                <div class="metric-value {v_color}">{v_text}</div>
+            </div>
+            """, unsafe_allow_html=True)
             
         st.markdown("---")
         
@@ -450,18 +449,41 @@ with tab_corneal:
     
     c_col1, c_col2, c_col3, c_col4 = st.columns(4)
     with c_col1:
-        st.metric("Multi-Signal Anomaly Score", f"{corneal.get('anomaly_score', 20.0):.1f}%", delta="Authentic < 32%")
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">Multi-Signal Anomaly Score</div>
+            <div class="metric-value metric-status-warning">{corneal.get('anomaly_score', 20.0):.1f}%</div>
+            <div style="font-size:0.75rem; color:var(--accent-green); margin-top:4px;">Authentic &lt; 32%</div>
+        </div>
+        """, unsafe_allow_html=True)
     with c_col2:
-        st.metric("Detection Confidence", f"{corneal.get('confidence', 90.0):.1f}%")
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">Detection Confidence</div>
+            <div class="metric-value">{corneal.get('confidence', 90.0):.1f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
     with c_col3:
-        st.metric("Corneal Integrity Score", f"{corneal['symmetry_score']:.1f}%")
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">Corneal Integrity Score</div>
+            <div class="metric-value">{corneal['symmetry_score']:.1f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
     with c_col4:
         if corneal.get("verdict_text") == "No evidence available":
-            st.metric("Verdict", "NO EVIDENCE AVAILABLE")
+            v_text, v_col = "NO EVIDENCE", "metric-status-warning"
         elif not corneal.get("is_quality_sufficient", True):
-            st.metric("Verdict", "INSUFFICIENT QUALITY")
+            v_text, v_col = "POOR QUALITY", "metric-status-warning"
         else:
-            st.metric("Verdict", "AUTHENTIC REAL PHOTO" if corneal['is_authentic'] else "SYNTHETIC AI FABRICATION")
+            v_text = "AUTHENTIC" if corneal['is_authentic'] else "SYNTHETIC"
+            v_col = "metric-status-safe" if corneal['is_authentic'] else "metric-status-threat"
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">Verdict</div>
+            <div class="metric-value {v_col}">{v_text}</div>
+        </div>
+        """, unsafe_allow_html=True)
             
     st.markdown("---")
     
