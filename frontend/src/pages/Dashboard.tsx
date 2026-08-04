@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, File, AlertCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { uploadEvidence } from '../services/api';
 
 const Dashboard = () => {
@@ -50,20 +51,28 @@ const Dashboard = () => {
 
   return (
     <div className="max-w-5xl mx-auto py-12">
-      <div className="mb-12 text-center">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="mb-12 text-center"
+      >
         <h2 className="text-3xl font-bold text-textMain mb-4 tracking-wide">DIGITAL FORENSICS HUB</h2>
         <p className="text-secondary max-w-2xl mx-auto">
           Securely upload visual and auditory evidence for automated environmental intelligence graphing and forensic authenticity verification.
         </p>
-      </div>
+      </motion.div>
 
-      <div 
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
         className={`card border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center p-20 cursor-pointer relative overflow-hidden group
-          ${isDragging ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
+          ${isDragging ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50 hover:shadow-[0_0_30px_rgba(0,210,255,0.05)]'}`}
       >
         <input 
           type="file" 
