@@ -25,7 +25,7 @@ const AGENTS: AgentDef[] = [
     shortLabel: 'EVIDENCE INTAKE',
     icon: Database,
     mission: 'Register and validate evidence. Generate SHA-256 custody chain.',
-    logTemplate: (f) => [
+    logTemplate: (_f: any) => [
       'Case registered with A.E.G.I.S. Orchestrator.',
       'SHA-256 cryptographic hash computed.',
       'Evidence metadata extracted.',
@@ -38,7 +38,7 @@ const AGENTS: AgentDef[] = [
     shortLabel: 'PRIVACY SHIELD',
     icon: Shield,
     mission: 'Protect investigators by detecting and redacting human subjects.',
-    logTemplate: (f) => {
+    logTemplate: (f: any) => {
       const count = f?.count ?? 0;
       return count > 0
         ? [`${count} human subject${count > 1 ? 's' : ''} detected.`, 'Applying facial redaction masks.', 'Investigator-safe evidence output ready. ✓']
@@ -90,7 +90,7 @@ const AGENTS: AgentDef[] = [
     shortLabel: 'KNOWLEDGE GRAPH',
     icon: GitBranch,
     mission: 'Correlate entities and map environmental relationships.',
-    logTemplate: (f) => [
+    logTemplate: (_f: any) => [
       'Initialising NetworkX investigation graph...',
       'Converting extracted entities to graph nodes...',
       'Establishing entity relationship edges...',
@@ -103,7 +103,7 @@ const AGENTS: AgentDef[] = [
     shortLabel: 'LEGAL REPORT',
     icon: FileText,
     mission: 'Generate a court-admissible BSA 2023 compliant forensic report.',
-    logTemplate: (f) => [
+    logTemplate: (_f: any) => [
       'Collecting forensic outputs from all agents...',
       'Computing final authenticity verdict...',
       'Attaching SHA-256 evidence hash...',
@@ -111,16 +111,6 @@ const AGENTS: AgentDef[] = [
     ],
   },
 ];
-
-// Map API response fields to agent IDs
-const AGENT_RESULT_MAP: Record<string, string> = {
-  privacy: 'privacy',
-  enf: 'enf',
-  corneal: 'enf',       // corneal feeds enf agent display
-  gemini: 'vision',
-  knowledge_graph: 'graph',
-  legal_report: 'legal',
-};
 
 const STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; icon: React.FC<any> }> = {
   ready:     { label: 'READY',     color: 'text-textMuted border-border bg-surfaceHover',              icon: Circle },
@@ -145,9 +135,6 @@ const Investigation = () => {
   const hasStarted = useRef(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
-  const appendLog = (agentShort: string, lines: string[], color = 'text-primary') => {
-    setActivityLog(prev => [...prev, { agent: agentShort, lines, color }]);
-  };
 
   const setStatus = (id: string, status: AgentStatus) => {
     setAgentStatuses(prev => ({ ...prev, [id]: status }));
