@@ -105,7 +105,7 @@ const Dashboard = () => {
             </div>
           </>
         )}
-      </div>
+      </motion.div>
 
       {error && (
         <div className="mt-6 bg-danger/10 border border-danger/20 rounded p-4 flex items-start space-x-3 text-danger">
