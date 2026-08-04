@@ -126,6 +126,10 @@ with open(active_path, "rb") as f:
     file_bytes = f.read()
 sha256_custody_hash = legal_docket.compute_sha256(file_bytes)
 
+# Clear any stale @st.cache_data entries that may reference old module signatures
+# (e.g. after a hot-reload or module rewrite during development)
+st.cache_data.clear()
+
 # Execute Core Forensic Modules in Real-Time for the resolved active evidence file
 @st.cache_data(show_spinner="Executing Real-Time Multi-Signal Agentic Pipeline...")
 def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str, file_mtime: float):
@@ -176,18 +180,20 @@ def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str, fil
     results["vlm"] = vlm_extractor.parse_background_environment(results["privacy"]["shielded_bgr"], gemini_api_key)
     
     # 5. NetworkX Knowledge Graph Compilation
-    # No historical_cases argument — only current-evidence entities are graphed.
-    # historical_db_connected=False because no real external database is connected.
+    # historical_cases=None  —  no fabricated cases injected.
+    # historical_db_connected=False  — no real external DB is connected.
     G = knowledge_graph.build_case_knowledge_graph(
         case_id,
         results["vlm"].get("environmental_objects", []),
-        historical_cases=None          # no fabricated cases injected
+        None          # no fabricated historical_cases
     )
-    results["graph"] = G
+    # NOTE: G (nx.Graph) is intentionally NOT stored in results; NetworkX graphs
+    # are not serialisable by st.cache_data. Only the Plotly figure (serialisable)
+    # and the correlations list are kept.
     results["graph_fig"] = knowledge_graph.generate_plotly_network_figure(G)
+    # Pass False positionally — avoids keyword-arg version mismatch during hot-reload
     results["graph_correlations"] = knowledge_graph.analyze_cross_case_correlations(
-        G, case_id,
-        historical_db_connected=False  # explicitly unavailable — no real DB connected
+        G, case_id, False
     )
     results["historical_db_connected"] = False
     
