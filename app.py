@@ -88,16 +88,23 @@ district = st.sidebar.selectbox("Jurisdiction District", ["Kochi Cyber Cell", "T
 st.sidebar.markdown("---")
 gemini_key = st.sidebar.text_input("Google Gemini API Key (Optional)", type="password", help="Optional API key for Gemini Vision VLM background parsing. Local fallback engine active if blank.")
 
-# Determine Active File Path cleanly
+# UNIFIED EVIDENCE RESOLUTION ENGINE (Backend Pipeline Repair)
+uploaded_file = None
+if "Upload Custom Evidence File" in input_mode:
+    uploaded_file = sidebar_uploaded_file
+
+if uploaded_file is None and "main_uploaded_file" in st.session_state and st.session_state["main_uploaded_file"] is not None:
+    uploaded_file = st.session_state["main_uploaded_file"]
+
 active_path = None
 is_video = True
 
-if sidebar_uploaded_file is not None:
-    save_path = os.path.join(sample_generator.SAMPLE_DIR, f"custom_{sidebar_uploaded_file.name}")
+if uploaded_file is not None:
+    save_path = os.path.join(sample_generator.SAMPLE_DIR, f"custom_{uploaded_file.name}")
     with open(save_path, "wb") as f:
-        f.write(sidebar_uploaded_file.getbuffer())
+        f.write(uploaded_file.getbuffer())
     active_path = save_path
-    is_video = sidebar_uploaded_file.name.lower().endswith((".mp4", ".avi", ".mov"))
+    is_video = uploaded_file.name.lower().endswith((".mp4", ".avi", ".mov"))
 elif "Authentic Video" in input_mode:
     active_path = sample_paths["auth_video"]
     is_video = True
@@ -114,31 +121,41 @@ else:
     active_path = sample_paths["auth_video"]
     is_video = True
 
-# Compute SHA-256 Hash of Evidence
+# Read file bytes & compute real SHA-256 custody chain hash
 with open(active_path, "rb") as f:
     file_bytes = f.read()
 sha256_custody_hash = legal_docket.compute_sha256(file_bytes)
 
-# Execute Core Forensic Modules in Real-Time
+# Execute Core Forensic Modules in Real-Time for the resolved active evidence file
 @st.cache_data(show_spinner="Executing Real-Time Multi-Signal Agentic Pipeline...")
-def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str):
+def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str, file_mtime: float):
     results = {}
     
     # 1. Privacy Shield Execution
     if not is_vid:
         img_bgr = cv2.imread(file_path)
         shielded_bgr, face_count, bboxes = privacy_shield.apply_privacy_shield_to_image(img_bgr)
-        results["privacy"] = {"count": face_count, "img_bgr": img_bgr, "shielded_bgr": shielded_bgr}
+        results["privacy"] = {
+            "count": face_count,
+            "img_bgr": img_bgr,
+            "shielded_bgr": shielded_bgr,
+            "shielded_vid_path": None
+        }
     else:
-        out_vid = os.path.join(sample_generator.SAMPLE_DIR, "shielded_temp.mp4")
+        out_vid = os.path.join(sample_generator.SAMPLE_DIR, f"shielded_{os.path.basename(file_path)}")
         shielded_vid, face_count = privacy_shield.apply_privacy_shield_to_video(file_path, out_vid)
         cap = cv2.VideoCapture(file_path)
         ret, frame = cap.read()
         cap.release()
         shielded_bgr, _, _ = privacy_shield.apply_privacy_shield_to_image(frame)
-        results["privacy"] = {"count": face_count, "img_bgr": frame, "shielded_bgr": shielded_bgr}
+        results["privacy"] = {
+            "count": face_count,
+            "img_bgr": frame,
+            "shielded_bgr": shielded_bgr,
+            "shielded_vid_path": out_vid
+        }
         
-    # 2. ENF Physics Analyzer (for videos or video sample fallback)
+    # 2. ENF Physics Analyzer (frame-by-frame luminance analysis)
     if is_vid:
         results["enf"] = enf_analyzer.analyze_video_enf(file_path, target_freq=50.0)
     else:
@@ -164,7 +181,8 @@ def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str):
     
     return results
 
-forensic_data = run_forensic_pipeline(active_path, is_video, gemini_key)
+file_mtime = os.path.getmtime(active_path) if os.path.exists(active_path) else 0.0
+forensic_data = run_forensic_pipeline(active_path, is_video, gemini_key, file_mtime)
 
 # Generate Dynamic BSA 2023 Legal Docket
 docket_res = legal_docket.generate_bsa_legal_docket(
@@ -192,26 +210,16 @@ tab_overview, tab_privacy, tab_enf, tab_corneal, tab_graph, tab_legal = st.tabs(
 with tab_overview:
     st.markdown("### 📥 EVIDENCE INGESTION HUB & REAL-TIME FORENSIC SUMMARY")
     
-    # Prominent Upload Box in Main View
     with st.expander("📂 CLICK HERE TO UPLOAD NEW EVIDENCE FILE (MP4, AVI, JPG, PNG)", expanded=True):
-        main_uploaded_file = st.file_uploader(
+        main_tab_uploaded_file = st.file_uploader(
             "Upload any Video (.mp4, .avi) or Image (.jpg, .png) file to process through A.E.G.I.S. real-time pipeline:",
             type=["mp4", "avi", "mov", "jpg", "png", "jpeg"],
             key="main_tab_uploader"
         )
-        if main_uploaded_file is not None:
-            save_path = os.path.join(sample_generator.SAMPLE_DIR, f"custom_{main_uploaded_file.name}")
-            with open(save_path, "wb") as f:
-                f.write(main_uploaded_file.getbuffer())
-            st.success(f"✅ Ingested custom evidence file: `{main_uploaded_file.name}`. Refreshing real-time analysis...")
-            active_path = save_path
-            is_video = main_uploaded_file.name.lower().endswith((".mp4", ".avi", ".mov"))
-            forensic_data = run_forensic_pipeline(active_path, is_video, gemini_key)
-            docket_res = legal_docket.generate_bsa_legal_docket(
-                case_id=case_id, investigator_id=officer_id, media_filename=os.path.basename(active_path),
-                media_bytes=main_uploaded_file.getvalue(), privacy_summary=forensic_data["privacy"],
-                enf_summary=forensic_data.get("enf"), corneal_summary=forensic_data.get("corneal"), vlm_summary=forensic_data.get("vlm")
-            )
+        if main_tab_uploaded_file is not None:
+            if st.session_state.get("main_uploaded_file") != main_tab_uploaded_file:
+                st.session_state["main_uploaded_file"] = main_tab_uploaded_file
+                st.rerun()
 
     st.markdown("---")
     
@@ -303,8 +311,8 @@ with tab_privacy:
             
     with col_shield:
         st.markdown("#### 🛡️ Redacted Environmental Evidence Stream")
-        if is_video and os.path.exists(os.path.join(sample_generator.SAMPLE_DIR, "shielded_temp.mp4")):
-            st.video(os.path.join(sample_generator.SAMPLE_DIR, "shielded_temp.mp4"))
+        if is_video and forensic_data["privacy"].get("shielded_vid_path") and os.path.exists(forensic_data["privacy"]["shielded_vid_path"]):
+            st.video(forensic_data["privacy"]["shielded_vid_path"])
         else:
             st.image(cv2.cvtColor(forensic_data["privacy"]["shielded_bgr"], cv2.COLOR_BGR2RGB), use_container_width=True)
             
@@ -408,7 +416,7 @@ with tab_corneal:
     
     c_col1, c_col2, c_col3, c_col4 = st.columns(4)
     with c_col1:
-        st.metric("Multi-Signal Anomaly Score", f"{corneal.get('anomaly_score', 20.0):.1f}%", delta="Authentic < 45%")
+        st.metric("Multi-Signal Anomaly Score", f"{corneal.get('anomaly_score', 20.0):.1f}%", delta="Authentic < 32%")
     with c_col2:
         st.metric("Detection Confidence", f"{corneal.get('confidence', 90.0):.1f}%")
     with c_col3:
