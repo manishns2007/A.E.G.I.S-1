@@ -27,15 +27,10 @@ from PIL import Image, ExifTags
 def detect_face_and_eyes_classical(img_bgr):
     """
     Classical CV Face and Eye Detector with Strict Quality & Pose Filtering.
-    Returns:
-      - is_valid (bool): True if face/eyes pass quality checks.
-      - quality_reason (str): Explanation if quality check fails.
-      - l_crop, r_crop: BGR crops of left and right eyes.
-      - l_box, r_box: (x, y, w, h) bounding boxes.
-      - quality_confidence (float): Image quality score (0-100%).
+    Returns 'No evidence available' if image array is empty or unreadable.
     """
     if img_bgr is None or img_bgr.size == 0:
-        return False, "Insufficient image quality: Invalid or unreadable image array.", None, None, None, None, 0.0
+        return False, "No evidence available: Invalid or unreadable image array.", None, None, None, None, 0.0
 
     h_img, w_img = img_bgr.shape[:2]
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
@@ -54,22 +49,18 @@ def detect_face_and_eyes_classical(img_bgr):
         except Exception:
             pass
 
-    # Fallback face bounding box if cascade misses (geometric central face assumption for single-subject portraits)
     if len(faces) == 0:
-        # Check overall image focus blur first
         overall_blur = float(cv2.Laplacian(gray, cv2.CV_64F).var())
         if overall_blur < 35.0:
             return False, "Insufficient image quality: Overall image blur too high (Laplacian Var < 35).", None, None, None, None, 15.0
 
-        # Geometric face assumption for centered portraits
         fx, fy, fw, fh = int(w_img * 0.20), int(h_img * 0.15), int(w_img * 0.60), int(h_img * 0.70)
         faces = [(fx, fy, fw, fh)]
 
-    # Select largest face
     primary_face = max(faces, key=lambda f: f[2] * f[3])
     fx, fy, fw, fh = primary_face
 
-    # 2. Quality Check: Reject Tiny Faces
+    # Quality Check: Reject Tiny Faces
     face_area = fw * fh
     img_area = w_img * h_img
     face_ratio = face_area / float(img_area + 1e-5)
@@ -78,15 +69,13 @@ def detect_face_and_eyes_classical(img_bgr):
         return False, f"Insufficient image quality: Tiny face detected ({fw}x{fh} px, {face_ratio*100:.1f}% canvas).", None, None, None, None, 25.0
 
     face_gray = gray[fy:fy+fh, fx:fx+fw]
-    face_bgr = img_bgr[fy:fy+fh, fx:fx+fw]
 
-    # 3. Eye Detection & Pose Filtering
+    # Eye Detection & Pose Filtering
     eyes = []
     if os.path.exists(eye_xml):
         try:
             eye_cascade = cv2.CascadeClassifier(eye_xml)
             if not eye_cascade.empty():
-                # Search upper 60% of face for eyes
                 upper_face_gray = face_gray[0:int(fh * 0.60), :]
                 eyes_detected = eye_cascade.detectMultiScale(upper_face_gray, scaleFactor=1.1, minNeighbors=3, minSize=(16, 16))
                 for ex, ey, ew, eh in eyes_detected:
@@ -94,12 +83,10 @@ def detect_face_and_eyes_classical(img_bgr):
         except Exception:
             pass
 
-    # Sort eyes left-to-right
     if len(eyes) >= 2:
         eyes = sorted(eyes, key=lambda e: e[0])
         e1, e2 = eyes[0], eyes[1]
 
-        # Pose Check: Side profile / asymmetrical eye positions
         eye1_cx = e1[0] + e1[2] / 2.0
         eye2_cx = e2[0] + e2[2] / 2.0
         eye_sep = abs(eye2_cx - eye1_cx)
@@ -107,7 +94,6 @@ def detect_face_and_eyes_classical(img_bgr):
         if eye_sep < (fw * 0.22) or eye_sep > (fw * 0.75):
             return False, "Insufficient image quality: Side profile or asymmetric facial pose detected.", None, None, None, None, 30.0
 
-        # Y-level alignment
         if abs(e1[1] - e2[1]) > (fh * 0.15):
             return False, "Insufficient image quality: Extreme head tilt / non-frontal pose detected.", None, None, None, None, 32.0
 
@@ -116,7 +102,6 @@ def detect_face_and_eyes_classical(img_bgr):
         r_crop = img_bgr[max(0, e2[1]-pad2):min(h_img, e2[1]+e2[3]+pad2), max(0, e2[0]-pad2):min(w_img, e2[0]+e2[2]+pad2)]
         l_box, r_box = e1, e2
     else:
-        # Geometric Eye Crop Fallback inside Face Box
         eye_y1, eye_y2 = int(fy + fh * 0.28), int(fy + fh * 0.58)
         l_x1, l_x2 = int(fx + fw * 0.12), int(fx + fw * 0.46)
         r_x1, r_x2 = int(fx + fw * 0.54), int(fx + fw * 0.88)
@@ -129,7 +114,7 @@ def detect_face_and_eyes_classical(img_bgr):
     if l_crop is None or r_crop is None or l_crop.size == 0 or r_crop.size == 0:
         return False, "Insufficient image quality: Failed to isolate eye regions of interest.", None, None, None, None, 20.0
 
-    # 4. Quality Check: Closed / Blinking Eyes
+    # Quality Check: Closed / Blinking Eyes
     l_gray = cv2.cvtColor(l_crop, cv2.COLOR_BGR2GRAY)
     r_gray = cv2.cvtColor(r_crop, cv2.COLOR_BGR2GRAY)
 
@@ -142,7 +127,7 @@ def detect_face_and_eyes_classical(img_bgr):
     if l_ear < 0.18 or r_ear < 0.18:
         return False, "Insufficient image quality: Closed or blinking eyes detected (Eye Aspect Ratio < 0.18).", None, None, None, None, 35.0
 
-    # 5. Quality Check: Blurry Eyes (Laplacian Variance)
+    # Quality Check: Blurry Eyes
     l_blur = float(cv2.Laplacian(l_gray, cv2.CV_64F).var())
     r_blur = float(cv2.Laplacian(r_gray, cv2.CV_64F).var())
     mean_eye_blur = (l_blur + r_blur) / 2.0
@@ -150,7 +135,6 @@ def detect_face_and_eyes_classical(img_bgr):
     if l_blur < 40.0 or r_blur < 40.0:
         return False, f"Insufficient image quality: Blurry eye regions (Laplacian Var: Left={l_blur:.1f}, Right={r_blur:.1f} < 40.0).", None, None, None, None, 35.0
 
-    # Compute overall image quality confidence score (0-100%)
     quality_confidence = float(np.clip(
         40.0 + (min(mean_eye_blur, 500.0) / 10.0) + (face_ratio * 100.0 * 0.5),
         55.0, 99.0
@@ -163,11 +147,7 @@ def detect_face_and_eyes_classical(img_bgr):
 def analyze_corneal_glints(eye_crop):
     """
     Isolates specular light glints inside dark iris/pupil region.
-    Calculates:
-      - glint count
-      - glint centroid (cx, cy)
-      - circularity (4 * pi * Area / Perimeter^2)
-      - contour area
+    Calculates glint count, centroid, circularity, area.
     """
     default_feat = {"area": 0.0, "circularity": 0.0, "aspect": 1.0, "cx": 0.5, "cy": 0.5}
     if eye_crop is None or eye_crop.size == 0:
@@ -227,6 +207,9 @@ def analyze_corneal_glints(eye_crop):
 
 def eval_corneal_indicator(l_count, r_count, l_feat, r_feat):
     """Indicator 1: Corneal Specular Reflection Consistency (Weight = 0.30)"""
+    if l_count == 0 and r_count == 0:
+        return 50.0, "Corneal Reflection: No visible specular glints isolated in eye crops."
+
     count_diff = abs(l_count - r_count)
     count_penalty = 0.45 if count_diff > 0 else 0.0
     
@@ -245,7 +228,7 @@ def eval_corneal_indicator(l_count, r_count, l_feat, r_feat):
 def eval_exif_indicator(image_path_or_bytes):
     """Indicator 2: EXIF Metadata Structure (Weight = 0.20)"""
     if not image_path_or_bytes:
-        return 50.0, "EXIF Metadata: Media source path unavailable for EXIF header verification."
+        return 50.0, "EXIF Metadata: No evidence available for EXIF header verification."
         
     try:
         if isinstance(image_path_or_bytes, str) and os.path.exists(image_path_or_bytes):
@@ -270,7 +253,7 @@ def eval_exif_indicator(image_path_or_bytes):
 def eval_jpeg_compression_indicator(img_bgr):
     """Indicator 3: JPEG Compression & Quantization Consistency (Weight = 0.15)"""
     if img_bgr is None:
-        return 50.0, "JPEG Compression: Image matrix unavailable."
+        return 50.0, "JPEG Compression: No evidence available."
         
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape[:2]
@@ -302,7 +285,7 @@ def eval_jpeg_compression_indicator(img_bgr):
 def eval_resolution_indicator(img_bgr):
     """Indicator 4: Aspect Ratio & Canvas Resolution Anomaly (Weight = 0.10)"""
     if img_bgr is None:
-        return 50.0, "Resolution: Image matrix unavailable."
+        return 50.0, "Resolution: No evidence available."
         
     h, w = img_bgr.shape[:2]
     
@@ -324,7 +307,7 @@ def eval_resolution_indicator(img_bgr):
 def eval_blur_indicator(img_bgr):
     """Indicator 5: Laplacian Blur Variance (Weight = 0.05)"""
     if img_bgr is None:
-        return 50.0, "Blur Estimation: Image matrix unavailable."
+        return 50.0, "Blur Estimation: No evidence available."
         
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
@@ -344,7 +327,7 @@ def eval_blur_indicator(img_bgr):
 def eval_noise_indicator(img_bgr):
     """Indicator 6: Spatial Noise Residual Variance (Weight = 0.10)"""
     if img_bgr is None:
-        return 50.0, "Noise Variance: Image matrix unavailable."
+        return 50.0, "Noise Variance: No evidence available."
         
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
     blurred = cv2.GaussianBlur(gray, (5, 5), 1.0)
@@ -363,7 +346,7 @@ def eval_noise_indicator(img_bgr):
 def eval_edge_density_indicator(img_bgr):
     """Indicator 7: Structural Edge Density Distribution (Weight = 0.05)"""
     if img_bgr is None:
-        return 50.0, "Edge Density: Image matrix unavailable."
+        return 50.0, "Edge Density: No evidence available."
         
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 50, 150)
@@ -381,7 +364,7 @@ def eval_edge_density_indicator(img_bgr):
 def eval_saturation_indicator(img_bgr):
     """Indicator 8: Saturation Statistics & Color Histogram (Weight = 0.05)"""
     if img_bgr is None:
-        return 50.0, "Saturation: Image matrix unavailable."
+        return 50.0, "Saturation: No evidence available."
         
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     sat_mean = float(np.mean(hsv[:, :, 1]))
@@ -401,15 +384,25 @@ def eval_saturation_indicator(img_bgr):
 def analyze_corneal_specular_topology(img_bgr, file_path: str = None):
     """
     Main Multi-Signal Forensic Engine with Classical Computer Vision Quality Filtering.
-    Evaluates:
-      - Face & Eye Detection
-      - Quality Check (rejects tiny faces, side profiles, closed eyes, blurry eyes)
-      - Glint Count, Centroid, Circularity, Area, and Specular Symmetry
-      - Returns "Insufficient image quality" if image quality confidence < 40.0%
+    Returns 'Insufficient image quality' or 'No evidence available' gracefully if image is unavailable.
     """
     if isinstance(img_bgr, str) and file_path is None:
         file_path = img_bgr
         img_bgr = cv2.imread(file_path)
+
+    if img_bgr is None or img_bgr.size == 0:
+        return {
+            "l_crop": None, "r_crop": None, "l_mask": None, "r_mask": None,
+            "l_count": 0, "r_count": 0,
+            "l_feat": {"area": 0, "circularity": 0, "cx": 0.5, "cy": 0.5, "aspect": 1.0},
+            "r_feat": {"area": 0, "circularity": 0, "cx": 0.5, "cy": 0.5, "aspect": 1.0},
+            "symmetry_score": 50.0, "anomaly_score": 50.0, "confidence": 0.0,
+            "is_quality_sufficient": False, "is_authentic": False,
+            "verdict_text": "No evidence available",
+            "quality_reason": "No evidence available: Image file missing or unreadable.",
+            "contributing_features": {},
+            "explanation": ["Rejection: No evidence available"]
+        }
 
     # 1. Classical CV Face, Eye, and Quality Filter
     is_quality_valid, quality_reason, l_crop, r_crop, l_box, r_box, quality_confidence = detect_face_and_eyes_classical(img_bgr)
@@ -418,8 +411,9 @@ def analyze_corneal_specular_topology(img_bgr, file_path: str = None):
     l_mask, l_count, l_feat = analyze_corneal_glints(l_crop)
     r_mask, r_count, r_feat = analyze_corneal_glints(r_crop)
 
-    # Rejection Rule: Return "Insufficient image quality" if image fails CV quality checks or confidence < 40%
+    # Rejection Rule: Return "Insufficient image quality" or "No evidence available" if quality check fails
     if not is_quality_valid or quality_confidence < 40.0:
+        verdict = "No evidence available" if "No evidence available" in quality_reason else "Insufficient image quality"
         return {
             "l_crop": l_crop,
             "r_crop": r_crop,
@@ -434,7 +428,7 @@ def analyze_corneal_specular_topology(img_bgr, file_path: str = None):
             "confidence": quality_confidence,
             "is_quality_sufficient": False,
             "is_authentic": False,
-            "verdict_text": "Insufficient image quality",
+            "verdict_text": verdict,
             "quality_reason": quality_reason,
             "contributing_features": {},
             "explanation": [f"Rejection: {quality_reason}"]

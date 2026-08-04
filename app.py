@@ -164,7 +164,7 @@ def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str, fil
             "enf_ratio": 1.0,
             "is_authentic": True,
             "verdict_text": "ENF unavailable",
-            "reason": "Static image input (ENF requires video luminance stream)",
+            "reason": "No evidence available for ENF grid frequency estimation (Static image input)",
             "freqs": [], "spectrum": [], "luminance_signal": [], "time_stamps": []
         }
         
@@ -345,7 +345,7 @@ with tab_enf:
         enf = forensic_data["enf"]
         
     if not enf.get("is_enf_available", True) or enf.get("verdict_text") == "ENF unavailable":
-        st.warning(f"⚠️ **ENF unavailable**: {enf.get('reason', 'Video duration too short (< 45 frames), low FPS (< 12 FPS), or static image.')}")
+        st.warning(f"⚠️ **ENF unavailable**: {enf.get('reason', 'No evidence available for ENF grid frequency estimation.')}")
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         with col_m1:
             st.metric("ENF Peak Power Ratio", "N/A")
@@ -440,14 +440,18 @@ with tab_corneal:
     with c_col3:
         st.metric("Corneal Integrity Score", f"{corneal['symmetry_score']:.1f}%")
     with c_col4:
-        if not corneal.get("is_quality_sufficient", True):
+        if corneal.get("verdict_text") == "No evidence available":
+            st.metric("Verdict", "NO EVIDENCE AVAILABLE")
+        elif not corneal.get("is_quality_sufficient", True):
             st.metric("Verdict", "INSUFFICIENT QUALITY")
         else:
             st.metric("Verdict", "AUTHENTIC REAL PHOTO" if corneal['is_authentic'] else "SYNTHETIC AI FABRICATION")
             
     st.markdown("---")
     
-    if not corneal.get("is_quality_sufficient", True):
+    if corneal.get("verdict_text") == "No evidence available":
+        st.warning("⚠️ **No evidence available**: Image file missing or unreadable.")
+    elif not corneal.get("is_quality_sufficient", True):
         st.warning(f"⚠️ **Analysis Suspended**: {corneal.get('quality_reason', 'Insufficient image quality')}. Quality confidence is below threshold (< 40.0%).")
     
     # 8-Feature Contributing Breakdown Plot
@@ -512,18 +516,21 @@ with tab_graph:
     st.markdown(f"**Extracted Scene Environment**: `{vlm.get('scene_type', 'Indoor Scene')}` | Lighting: `{vlm.get('lighting_type', 'N/A')}`")
     
     st.markdown("#### 📦 Extracted Background Entities & Attributes")
-    obj_cols = st.columns(3)
     objs = vlm.get("environmental_objects", [])
-    for idx, obj in enumerate(objs):
-        with obj_cols[idx % 3]:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div style="color: #ffb703; font-weight: 700;">📌 {obj['entity']}</div>
-                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 4px;">
-                    {', '.join(obj.get('attributes', []))}
+    if len(objs) == 0:
+        st.warning("⚠️ **No evidence available**: Zero environmental entities detected in active evidence background.")
+    else:
+        obj_cols = st.columns(3)
+        for idx, obj in enumerate(objs):
+            with obj_cols[idx % 3]:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div style="color: #ffb703; font-weight: 700;">📌 {obj['entity']}</div>
+                    <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 4px;">
+                        {', '.join(obj.get('attributes', []))}
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
             
     st.markdown("---")
     st.markdown("#### 🌐 Interactive NetworkX Intelligence Correlation Graph")

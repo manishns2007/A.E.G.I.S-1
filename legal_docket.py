@@ -31,16 +31,30 @@ def generate_bsa_legal_docket(case_id: str, investigator_id: str, media_filename
                                 privacy_summary: dict, enf_summary: dict, corneal_summary: dict, vlm_summary: dict):
     """
     Generates a full court-admissible legal docket compliant with Section 63 of Bharatiya Sakshya Adhiniyam, 2023.
+    Gracefully handles 'No evidence available' and 'ENF unavailable' without fabricating verdicts.
     """
     sha256_hash = compute_sha256(media_bytes) if media_bytes else compute_sha256(media_filename)
     timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S IST")
     
-    # Combined verdict calculation
     enf_auth = enf_summary.get("is_authentic", True) if enf_summary else True
-    corneal_auth = corneal_summary.get("is_authentic", True) if corneal_summary else True
+    enf_avail = enf_summary.get("is_enf_available", True) if enf_summary else False
     
-    is_overall_authentic = (enf_auth and corneal_auth)
-    verdict_badge = "AUTHENTIC REAL-WORLD CAPTURE" if is_overall_authentic else "SYNTHETIC AI-GENERATED FABRICATION"
+    corneal_auth = corneal_summary.get("is_authentic", True) if corneal_summary else True
+    corneal_qual = corneal_summary.get("is_quality_sufficient", True) if corneal_summary else False
+    
+    # Evaluate combined verdict safely
+    if not enf_avail and not corneal_qual:
+        is_overall_authentic = False
+        verdict_badge = "NO EVIDENTIARY VERDICT (No evidence available)"
+        verdict_explanation = "Media analysis suspended due to inactive or insufficient evidentiary vectors (No evidence available for ENF grid hum or corneal specular glint analysis)."
+    else:
+        is_overall_authentic = (enf_auth and corneal_auth)
+        verdict_badge = "AUTHENTIC REAL-WORLD CAPTURE" if is_overall_authentic else "SYNTHETIC AI-GENERATED FABRICATION"
+        verdict_explanation = (
+            'Media exhibits physical 50Hz grid frequency hum and symmetric corneal specular geometry consistent with real-world sensor capture.'
+            if is_overall_authentic else
+            'Media fails fundamental physical grid frequency tests and/or exhibits asymmetric corneal specular highlights created by generative AI diffusion models.'
+        )
     
     docket_html = f"""
     <div style="background-color: #0b1329; border: 2px solid #ffb703; border-radius: 12px; padding: 28px; color: #e2e8f0; font-family: 'Inter', sans-serif;">
@@ -76,7 +90,7 @@ def generate_bsa_legal_docket(case_id: str, investigator_id: str, media_filename
         <div style="background: #162032; border-left: 4px solid {'#00e676' if is_overall_authentic else '#ff4b4b'}; padding: 14px; margin-bottom: 20px; border-radius: 4px;">
             <h4 style="margin: 0; color: {'#00e676' if is_overall_authentic else '#ff4b4b'}; font-size: 1.2rem;">SYSTEM FORENSIC VERDICT: {verdict_badge}</h4>
             <p style="margin: 6px 0 0 0; font-size: 0.95rem; color: #cbd5e1;">
-                {'Media exhibits physical 50Hz grid frequency hum and symmetric corneal specular geometry consistent with real-world sensor capture.' if is_overall_authentic else 'Media fails fundamental physical grid frequency tests and/or exhibits asymmetric corneal specular highlights created by generative AI diffusion models.'}
+                {verdict_explanation}
             </p>
         </div>
 
@@ -88,8 +102,8 @@ def generate_bsa_legal_docket(case_id: str, investigator_id: str, media_filename
 
         <h4 style="color: #00d2ff; border-bottom: 1px solid #2a364f; padding-bottom: 6px;">2. PHYSICAL & ENVIRONMENTAL FORENSIC VECTORS</h4>
         <ul style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.6;">
-            <li><b>Electrical Network Frequency (ENF) Spectrum:</b> {enf_summary.get('verdict_text', 'N/A')} (Peak Power Ratio: {enf_summary.get('enf_ratio', 0.0):.2f})</li>
-            <li><b>Corneal Specular Topology:</b> {corneal_summary.get('verdict_text', 'N/A')} (Reflection Symmetry Score: {corneal_summary.get('symmetry_score', 0.0):.1f}%)</li>
+            <li><b>Electrical Network Frequency (ENF) Spectrum:</b> {enf_summary.get('verdict_text', 'No evidence available')} (Peak Power Ratio: {enf_summary.get('enf_ratio', 0.0):.2f})</li>
+            <li><b>Corneal Specular Topology:</b> {corneal_summary.get('verdict_text', 'No evidence available')} (Reflection Symmetry Score: {corneal_summary.get('symmetry_score', 0.0):.1f}%)</li>
             <li><b>Visuo-Acoustic Knowledge Graphing:</b> {len(vlm_summary.get('environmental_objects', []))} Background Environmental Objects Extracted into Intelligence Graph</li>
         </ul>
 

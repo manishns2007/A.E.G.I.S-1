@@ -16,14 +16,41 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 def parse_background_environment(image_path_or_bgr, api_key: str = None):
     """
     Parses the background environment of an image into live computed JSON forensic entities.
+    Returns 'No evidence available' if image input is missing or unreadable.
     """
+    if image_path_or_bgr is None:
+        return {
+            "scene_type": "No evidence available",
+            "environmental_objects": [],
+            "spatial_layout": "No evidence available",
+            "lighting_type": "No evidence available",
+            "forensic_signature_hash": "ENV-AEGIS-NONE",
+            "error": "No evidence available"
+        }
+
     if isinstance(image_path_or_bgr, str):
+        if not os.path.exists(image_path_or_bgr):
+            return {
+                "scene_type": "No evidence available",
+                "environmental_objects": [],
+                "spatial_layout": "No evidence available",
+                "lighting_type": "No evidence available",
+                "forensic_signature_hash": "ENV-AEGIS-NONE",
+                "error": "No evidence available"
+            }
         img_bgr = cv2.imread(image_path_or_bgr)
     else:
         img_bgr = image_path_or_bgr.copy()
         
-    if img_bgr is None:
-        return {"error": "Invalid image input for VLM extraction"}
+    if img_bgr is None or img_bgr.size == 0:
+        return {
+            "scene_type": "No evidence available",
+            "environmental_objects": [],
+            "spatial_layout": "No evidence available",
+            "lighting_type": "No evidence available",
+            "forensic_signature_hash": "ENV-AEGIS-NONE",
+            "error": "No evidence available"
+        }
         
     h, w = img_bgr.shape[:2]
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
@@ -61,7 +88,7 @@ def parse_background_environment(image_path_or_bgr, api_key: str = None):
         except Exception:
             pass
             
-    # Live Computer Vision Feature Extraction Engine (Strictly Computed from Image Pixels)
+    # Live Computer Vision Feature Extraction Engine
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 50, 150)
     edge_density = float(np.mean(edges) / 255.0)
@@ -82,7 +109,7 @@ def parse_background_environment(image_path_or_bgr, api_key: str = None):
             "attributes": ["Low Frequency Surface", f"Dominant Tone RGB({int(mean_color[2])},{int(mean_color[1])},{int(mean_color[0])})"]
         })
         
-    # 2. Local Contour Bounding Box Analysis for Wall Fixtures / Sockets
+    # 2. Local Contour Bounding Box Analysis
     thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
@@ -106,7 +133,7 @@ def parse_background_environment(image_path_or_bgr, api_key: str = None):
             "attributes": ["Wall Surface Feature", "Neutral Polycarbonate Plate"]
         })
         
-    # 3. High-Luminance Top Region Analysis (Ceiling Fixture / Lighting)
+    # 3. High-Luminance Top Region Analysis
     top_region = gray[:int(h*0.30), :]
     top_mean = float(np.mean(top_region))
     top_std = float(np.std(top_region))
