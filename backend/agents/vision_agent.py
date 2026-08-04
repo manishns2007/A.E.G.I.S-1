@@ -14,15 +14,21 @@ import vlm_extractor
 
 class VisionIntelligenceAgent(BaseAgent):
     name = "Vision Intelligence Agent"
-    description = "Uses Gemini Vision AI to perform semantic background scene analysis and extract environmental entities."
+    purpose = "Uses Gemini Vision AI to perform semantic background scene analysis and extract environmental entities."
+    inputs = ["Privacy-Shielded BGR Canvas Buffer"]
+    outputs = ["Environmental Entity Nodes", "Scene Classification", "Spatial Layout Signature", "Lighting Geometry"]
     capabilities = ["Gemini Vision VLM", "Background Scene Understanding", "Environmental Object Extraction", "Spatial Layout Analysis"]
+    produces = ["Environmental Entity Nodes", "Scene Type Classification", "Spatial Layout Signature", "Lighting Geometry Signature"]
+    consumes = ["Privacy-Shielded BGR Image Frame"]
+    dependencies = ["Evidence Intake Agent", "Privacy Shield Agent"]
+    limitations = ["Requires valid GEMINI_API_KEY with active rate limits / quota"]
+    typical_runtime_sec = 1.5
 
     def execute(self, context: InvestigationContext) -> Dict[str, Any]:
         start = time.time()
         reasoning: List[str] = []
 
         try:
-            # Always pass privacy-shielded BGR buffer to preserve human subject privacy
             target_bgr = context.shielded_bgr if context.shielded_bgr is not None else context.img_bgr
             
             if target_bgr is None:
@@ -30,9 +36,7 @@ class VisionIntelligenceAgent(BaseAgent):
 
             reasoning.append("Submitting privacy-redacted background canvas to Gemini Vision Intelligence engine...")
             
-            # Key resolution is handled inside vlm_extractor from env (GEMINI_API_KEY)
             vlm_res = vlm_extractor.parse_background_environment(target_bgr)
-            
             vlm_status = vlm_res.get("status", "offline")
             
             if vlm_status != "offline":
@@ -62,19 +66,20 @@ class VisionIntelligenceAgent(BaseAgent):
                 status=status,
                 processing_time=time.time() - start,
                 confidence=confidence,
-                input_data={"shielded_buffer_used": context.shielded_bgr is not None},
+                input_data={"is_video": context.is_video},
                 output_data=vlm_res,
-                reasoning=reasoning
+                reasoning=reasoning,
+                recommend_next=["KnowledgeGraphAgent"]
             )
 
         except Exception as e:
-            err_msg = f"Vision Agent execution failed: {str(e)}"
+            err_msg = f"Vision Intelligence execution failed: {str(e)}"
             context.add_reasoning(self.name, err_msg)
             return self.format_response(
                 status="failed",
                 processing_time=time.time() - start,
                 confidence=0.0,
-                input_data={"shielded_buffer_used": False},
+                input_data={"is_video": context.is_video},
                 output_data={"status": "offline", "environmental_objects": []},
                 reasoning=reasoning,
                 error=err_msg

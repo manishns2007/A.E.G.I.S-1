@@ -440,7 +440,7 @@ def analyze_corneal_specular_topology(img_bgr, file_path: str = None):
             "anomaly_score": 50.0,
             "confidence": quality_confidence,
             "is_quality_sufficient": False,
-            "is_authentic": False,
+            "is_authentic": True,  # Neutral default — do not flag synthetic if quality check was skipped/rejected
             "verdict_text": verdict,
             "quality_reason": quality_reason,
             "contributing_features": {},

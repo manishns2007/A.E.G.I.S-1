@@ -8,7 +8,7 @@ import {
 import { startInvestigation } from '../services/api';
 import type { EvidenceInventory } from '../services/api';
 
-type AgentStatus = 'ready' | 'running' | 'completed' | 'warning' | 'failed';
+type AgentStatus = 'ready' | 'running' | 'completed' | 'warning' | 'failed' | 'skipped';
 
 interface AgentDef {
   id: string;
@@ -100,6 +100,7 @@ const STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; icon: R
   completed: { label: 'COMPLETED', color: 'text-success border-success/30 bg-success/5',              icon: CheckCircle2 },
   warning:   { label: 'WARNING',   color: 'text-accent border-accent/30 bg-accent/5',                 icon: AlertTriangle },
   failed:    { label: 'FAILED',    color: 'text-danger border-danger/30 bg-danger/5',                 icon: XCircle },
+  skipped:   { label: 'SKIPPED',   color: 'text-textMuted border-border bg-surfaceHover',             icon: Circle },
 };
 
 const Investigation = () => {

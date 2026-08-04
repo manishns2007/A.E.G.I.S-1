@@ -369,7 +369,7 @@ const Results = () => {
             {vision?.output?.status === 'offline' ? (
               <div className="flex items-center space-x-3 text-accent text-sm">
                 <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-                <p>Gemini Vision API not configured on server. Set the <code className="font-mono bg-surfaceHover px-1 rounded">GEMINI_API_KEY</code> environment variable to enable semantic extraction.</p>
+                <p>{vision?.output?.error || 'Gemini Vision API not configured on server. Set the GEMINI_API_KEY environment variable to enable semantic extraction.'}</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

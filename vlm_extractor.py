@@ -137,29 +137,35 @@ def parse_background_environment(image_path_or_bgr, api_key: str = None) -> dict
     raw_text = None
     last_error = "Unknown Gemini error."
 
-    # Try google.generativeai first (most standard and stable for API key usage)
+    # Use modern google-genai SDK directly
     try:
-        import google.generativeai as genai_old
-        genai_old.configure(api_key=api_key_to_use)
-        # Try gemini-1.5-flash, fallback to gemini-2.0-flash or gemini-1.5-pro
-        model = genai_old.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content([prompt, pil_img])
-        if response and response.text:
-            raw_text = response.text.strip()
-    except Exception as e_old:
-        last_error = f"google.generativeai error: {e_old}"
-        # Fallback to google-genai SDK
-        try:
-            from google import genai
-            client = genai.Client(api_key=api_key_to_use)
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=[prompt, pil_img]
-            )
-            if response and response.text:
-                raw_text = response.text.strip()
-        except Exception as e_new:
-            last_error = f"Legacy SDK error: {e_old} | New SDK error: {e_new}"
+        from google import genai
+        client = genai.Client(api_key=api_key_to_use)
+        
+        sdk_success = False
+        quota_error = None
+        
+        for model_name in ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[prompt, pil_img]
+                )
+                if response and response.text:
+                    raw_text = response.text.strip()
+                    sdk_success = True
+                    break
+            except Exception as e:
+                err_str = str(e)
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    quota_error = f"Gemini API Free Tier Quota Exceeded (429 RESOURCE_EXHAUSTED) for model {model_name}. Please upgrade your Gemini API key or wait for rate-limit reset."
+                last_error = f"Gemini API error ({model_name}): {e}"
+        
+        if not sdk_success:
+            raise Exception(quota_error or last_error)
+
+    except Exception as e_sdk:
+        last_error = f"{e_sdk}"
 
     if raw_text is None:
         print(f"[A.E.G.I.S. VLM ERROR] {last_error}")

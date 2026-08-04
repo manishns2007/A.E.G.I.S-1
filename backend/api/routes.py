@@ -392,7 +392,8 @@ async def get_graph(case_id: str):
     if case_id not in CASES or not CASES[case_id].get('results'):
         raise HTTPException(status_code=404, detail='Graph not found')
 
-    vlm_entities = CASES[case_id]['results']['vlm']['findings'].get('environmental_objects', [])
+    vision_res = CASES[case_id]['results'].get('vision', {}).get('output', {})
+    vlm_entities = vision_res.get('environmental_objects', [])
     nodes = [{'id': case_id, 'label': f'TARGET: {case_id}', 'type': 'case'}]
     edges = []
     for ent in vlm_entities:

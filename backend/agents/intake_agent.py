@@ -12,8 +12,15 @@ from .base_agent import BaseAgent, InvestigationContext
 
 class EvidenceIntakeAgent(BaseAgent):
     name = "Evidence Intake Agent"
-    description = "Registers evidence, verifies custody chain via SHA-256, and extracts metadata."
-    capabilities = ["SHA-256 Cryptographic Hashing", "Media Type Detection", "Metadata Extraction", "Custody Registration"]
+    purpose = "Registers evidence, verifies custody chain via SHA-256, and extracts baseline metadata."
+    inputs = ["Raw File Stream", "File Path", "Case ID"]
+    outputs = ["SHA-256 Custody Hash", "Media Metadata", "BGR Frame Buffer"]
+    capabilities = ["SHA-256 Cryptographic Hashing", "Media Type Classification", "Frame Buffer Extraction", "Custody Registration"]
+    produces = ["SHA-256 Custody Hash", "Image/Video Frame Buffer", "File Metadata"]
+    consumes = ["Raw File Stream / Upload Bytes"]
+    dependencies = []
+    limitations = ["Requires valid media file bytes or accessible disk path."]
+    typical_runtime_sec = 0.05
 
     def execute(self, context: InvestigationContext) -> Dict[str, Any]:
         start = time.time()
@@ -60,49 +67,54 @@ class EvidenceIntakeAgent(BaseAgent):
             else:
                 cap = cv2.VideoCapture(context.file_path)
                 if cap.isOpened():
-                    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-                    ret, frame = cap.read()
-                    cap.release()
+                    fps = cap.get(cv2.CAP_PROP_FPS)
+                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    duration_sec = total_frames / fps if fps > 0 else 0.0
+                    
+                    metadata["resolution"] = f"{w}x{h}"
                     metadata["fps"] = round(fps, 2)
                     metadata["total_frames"] = total_frames
-                    metadata["duration_sec"] = round(total_frames / fps, 2) if fps > 0 else 0
-                    if ret and frame is not None:
-                        h, w = frame.shape[:2]
-                        metadata["resolution"] = f"{w}x{h}"
-                        context.img_bgr = frame
-                    reasoning.append(f"Video stream validated ({total_frames} frames @ {fps:.1f} FPS, {metadata.get('resolution', 'N/A')}).")
+                    metadata["duration_sec"] = round(duration_sec, 2)
+                    
+                    ret, first_frame = cap.read()
+                    if ret and first_frame is not None:
+                        context.img_bgr = first_frame
+                    cap.release()
+                    
+                    reasoning.append(f"Video stream validated ({w}x{h} px, {fps:.1f} FPS, {duration_sec:.1f}s duration).")
                 else:
-                    reasoning.append("Warning: Could not open VideoCapture stream.")
+                    reasoning.append("Warning: Could not open video capture stream.")
 
             context.metadata = metadata
             context.add_reasoning(self.name, f"Evidence registered for {context.case_id}. Custody chain verified.")
 
             output = {
-                "case_id": context.case_id,
                 "sha256": sha256_hash,
-                "media_type": "Video" if context.is_video else "Image",
                 "metadata": metadata,
-                "custody_chain_verified": True
+                "verdict_text": "CUSTODY CHAIN SEALED",
+                "is_authentic": True
             }
 
             return self.format_response(
                 status="completed",
                 processing_time=time.time() - start,
                 confidence=100.0,
-                input_data={"file_path": context.file_path, "is_video": context.is_video},
+                input_data={"file_name": context.original_filename, "is_video": context.is_video},
                 output_data=output,
-                reasoning=reasoning
+                reasoning=reasoning,
+                recommend_next=["PrivacyShieldAgent"]
             )
 
         except Exception as e:
-            err_msg = f"Evidence intake failed: {str(e)}"
+            err_msg = f"Evidence Intake failed: {str(e)}"
             context.add_reasoning(self.name, err_msg)
             return self.format_response(
                 status="failed",
                 processing_time=time.time() - start,
                 confidence=0.0,
-                input_data={"file_path": context.file_path},
+                input_data={},
                 output_data={},
                 reasoning=reasoning,
                 error=err_msg

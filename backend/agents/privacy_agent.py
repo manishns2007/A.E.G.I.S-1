@@ -9,15 +9,21 @@ import sys
 from typing import Dict, Any, List
 from .base_agent import BaseAgent, InvestigationContext
 
-# Root module import
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 import privacy_shield
 import sample_generator
 
 class PrivacyShieldAgent(BaseAgent):
     name = "Privacy Shield Agent"
-    description = "Detects human subjects and applies facial redaction masks to safeguard investigator privacy."
+    purpose = "Detects human subjects and applies facial redaction masks to safeguard investigator privacy."
+    inputs = ["Unredacted Image BGR Buffer", "Video Stream Path"]
+    outputs = ["Shielded BGR Buffer", "Shielded Video Path", "Redacted Face Bboxes"]
     capabilities = ["Human Face Detection", "Gaussian Mask Redaction", "Investigator Safety Protection"]
+    produces = ["Shielded BGR Buffer", "Shielded Video Stream", "Redacted Face Count", "Face Bounding Boxes"]
+    consumes = ["Unredacted BGR Frame Buffer", "Video Stream Path"]
+    dependencies = ["Evidence Intake Agent"]
+    limitations = ["MediaPipe / Haar cascade face detection thresholding limitations on extreme angles."]
+    typical_runtime_sec = 0.8
 
     def execute(self, context: InvestigationContext) -> Dict[str, Any]:
         start = time.time()
@@ -35,8 +41,10 @@ class PrivacyShieldAgent(BaseAgent):
                 if face_count > 0:
                     reasoning.append(f"Detected {face_count} human subject(s) in static image canvas.")
                     reasoning.append("Applied Gaussian blur redaction masks over detected facial bounding boxes.")
+                    rec_next = ["CornealTopologyAgent"]
                 else:
                     reasoning.append("No human subjects detected in image background canvas.")
+                    rec_next = ["CornealTopologyAgent", "VisionIntelligenceAgent"]
                 reasoning.append("Generated investigator-safe privacy-redacted image buffer.")
 
                 context.add_reasoning(self.name, f"Privacy Shield complete. {face_count} face(s) redacted.")
@@ -45,7 +53,8 @@ class PrivacyShieldAgent(BaseAgent):
                     "count": face_count,
                     "bboxes": bboxes,
                     "redaction_applied": face_count > 0,
-                    "shielded_video_path": None
+                    "shielded_video_path": None,
+                    "verdict_text": f"REDATION COMPLETE ({face_count} SUBJECTS)" if face_count > 0 else "NO SUBJECTS DETECTED"
                 }
                 confidence = 98.0 if face_count > 0 else 99.5
 
@@ -56,7 +65,6 @@ class PrivacyShieldAgent(BaseAgent):
                 shielded_vid, face_count = privacy_shield.apply_privacy_shield_to_video(context.file_path, out_vid)
                 context.shielded_vid_path = out_vid
 
-                # Extract first frame for downstream VLM
                 if context.img_bgr is not None:
                     shielded_frame, _, _ = privacy_shield.apply_privacy_shield_to_image(context.img_bgr)
                     context.shielded_bgr = shielded_frame
@@ -73,10 +81,13 @@ class PrivacyShieldAgent(BaseAgent):
 
                 context.add_reasoning(self.name, f"Video Privacy Shield complete. {face_count} subject(s) redacted.")
 
+                rec_next = ["ENFPhysicsAgent"]
+
                 output = {
                     "count": face_count,
                     "redaction_applied": face_count > 0,
-                    "shielded_video_path": out_vid
+                    "shielded_video_path": out_vid,
+                    "verdict_text": f"VIDEO REDACTION COMPLETE ({face_count} INSTANCES)" if face_count > 0 else "NO SUBJECTS DETECTED"
                 }
                 confidence = 95.0
 
@@ -86,13 +97,13 @@ class PrivacyShieldAgent(BaseAgent):
                 confidence=confidence,
                 input_data={"is_video": context.is_video},
                 output_data=output,
-                reasoning=reasoning
+                reasoning=reasoning,
+                recommend_next=rec_next
             )
 
         except Exception as e:
             err_msg = f"Privacy Shield execution failed: {str(e)}"
             context.add_reasoning(self.name, err_msg)
-            # Safe fallback: preserve original image so pipeline continues
             context.shielded_bgr = context.img_bgr
             return self.format_response(
                 status="failed",

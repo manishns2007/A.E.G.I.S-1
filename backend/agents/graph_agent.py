@@ -1,7 +1,7 @@
 """
-Agent 8: Knowledge Graph Agent
-Wraps knowledge_graph.py. Translates extracted Vision entities into a NetworkX graph structure
-and prepares visual artifacts for the A.E.G.I.S. Investigation Workspace.
+Agent 6.5 / 7: Knowledge Graph Agent
+Wraps knowledge_graph.py. Takes environmental entities extracted by VisionIntelligenceAgent
+and builds an interactive NetworkX knowledge graph mapping objects, attributes, and cross-case links.
 """
 import time
 import os
@@ -14,74 +14,77 @@ import knowledge_graph
 
 class KnowledgeGraphAgent(BaseAgent):
     name = "Knowledge Graph Agent"
-    description = "Compiles semantic entities into an interactive NetworkX evidence graph."
-    capabilities = ["NetworkX Graph Generation", "Node Entity Extraction", "Plotly Visualization"]
+    purpose = "Compiles extracted environmental entities into NetworkX knowledge graph nodes and Plotly visualization figures."
+    inputs = ["VLM Environmental Objects List", "Case ID"]
+    outputs = ["NetworkX Graph Data", "Plotly Figure Dict", "Node/Edge Counts"]
+    capabilities = ["NetworkX Topological Graphing", "Plotly Figure Generation", "Cross-Case Node Correlation"]
+    produces = ["NetworkX Environmental Relationship Graph", "Plotly Interactive Network Figure", "Cross-Case Correlation Graph Nodes"]
+    consumes = ["Vision Intelligence Environmental Entities"]
+    dependencies = ["Vision Intelligence Agent"]
+    limitations = ["Dependent on Vision Intelligence entity extraction."]
+    typical_runtime_sec = 0.3
 
     def execute(self, context: InvestigationContext) -> Dict[str, Any]:
         start = time.time()
         reasoning: List[str] = []
 
         try:
-            # Get VLM entities from context
             vision_res = context.agent_results.get("Vision Intelligence Agent", {}).get("output", {})
-            environmental_objects = vision_res.get("environmental_objects", [])
+            entities = vision_res.get("environmental_objects", [])
 
-            if not environmental_objects:
-                reasoning.append("No environmental entities available from Vision Intelligence Agent to map.")
-                status = "warning"
-            else:
-                reasoning.append(f"Ingesting {len(environmental_objects)} environmental entities into topological graph engine...")
-                status = "completed"
-
-            # Build Graph
+            reasoning.append(f"Compiling NetworkX topological knowledge graph for target Case '{context.case_id}'...")
+            
             G = knowledge_graph.build_case_knowledge_graph(
-                context.case_id,
-                environmental_objects,
-                None  # Explicitly NO historical DB to prevent fake cases
+                current_case_id=context.case_id,
+                current_entities=entities
             )
-            
-            # Generate Visual Graph
-            graph_fig = knowledge_graph.generate_plotly_network_figure(G)
-            
-            # Analyze Correlations
-            graph_correlations = knowledge_graph.analyze_cross_case_correlations(G, context.case_id, False)
 
             node_count = G.number_of_nodes()
             edge_count = G.number_of_edges()
+            reasoning.append(f"Knowledge graph constructed with {node_count} nodes and {edge_count} directional relationship edges.")
 
-            reasoning.append(f"NetworkX graph compiled with {node_count} nodes and {edge_count} relationships.")
-            reasoning.append("Cross-case historical database is not connected. Correlation analysis suspended.")
+            fig = knowledge_graph.generate_plotly_network_figure(G)
+            context.knowledge_graph_fig = fig.to_dict()
+
+            correlations = knowledge_graph.analyze_cross_case_correlations(
+                G, current_case_id=context.case_id, historical_db_connected=False
+            )
+            
+            if correlations == knowledge_graph.HISTORICAL_DB_UNAVAILABLE:
+                reasoning.append("Cross-case historical database is disconnected (Reporting historical DB unavailable).")
+                corr_status = "unavailable"
+            else:
+                corr_status = "completed"
 
             context.add_reasoning(self.name, f"Graph compiled ({node_count} nodes).")
-            
-            context.knowledge_graph_fig = graph_fig
 
             output = {
                 "nodes": node_count,
                 "edges": edge_count,
-                "graph_fig": graph_fig,
-                "graph_correlations": graph_correlations,
-                "historical_db_connected": False
+                "historical_db_status": corr_status,
+                "entities_mapped": [e["entity"] if isinstance(e, dict) else str(e) for e in entities],
+                "fig": context.knowledge_graph_fig
             }
 
             return self.format_response(
-                status=status,
+                status="completed",
                 processing_time=time.time() - start,
-                confidence=95.0 if environmental_objects else 0.0,
-                input_data={"entity_count": len(environmental_objects)},
+                confidence=95.0,
+                input_data={"case_id": context.case_id, "entities_count": len(entities)},
                 output_data=output,
-                reasoning=reasoning
+                reasoning=reasoning,
+                recommend_next=["RiskAssessmentAgent"]
             )
 
         except Exception as e:
-            err_msg = f"Knowledge Graph generation failed: {str(e)}"
+            err_msg = f"Knowledge Graph compilation failed: {str(e)}"
             context.add_reasoning(self.name, err_msg)
             return self.format_response(
                 status="failed",
                 processing_time=time.time() - start,
                 confidence=0.0,
-                input_data={},
-                output_data={"nodes": 0, "edges": 0, "historical_db_connected": False},
+                input_data={"case_id": context.case_id},
+                output_data={"nodes": 0, "edges": 0},
                 reasoning=reasoning,
                 error=err_msg
             )

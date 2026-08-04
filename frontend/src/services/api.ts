@@ -59,8 +59,9 @@ export interface MultiAgentInvestigationResponse {
   enf: AgentResponse;
   corneal: AgentResponse;
   vision: AgentResponse;
-  fusion: AgentResponse;
   graph: AgentResponse;
+  risk: AgentResponse;
+  fusion: AgentResponse;
   legal_report: AgentResponse;
   reasoning_chain: string[];
 }

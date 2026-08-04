@@ -27,8 +27,9 @@ class MultiAgentInvestigationResponse(BaseModel):
     enf: AgentResponse
     corneal: AgentResponse
     vision: AgentResponse
-    fusion: AgentResponse
     graph: AgentResponse
+    risk: AgentResponse
+    fusion: AgentResponse
     legal_report: AgentResponse
     reasoning_chain: List[str]
 
