@@ -2,9 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: 'http://localhost:8000/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
 export interface UploadResponse {
@@ -23,24 +21,48 @@ export interface AnalyzeResponse {
   legal_report: any;
 }
 
+export interface LockerItem {
+  case_ref: string;
+  filename: string;
+  file_type: string;
+  size_kb: number;
+  registered_at: string;
+  status: string;
+  path: string;
+}
+
+export interface AgentHealth {
+  name: string;
+  status: 'online' | 'offline';
+}
+
 export const uploadEvidence = async (file: File): Promise<UploadResponse> => {
   const formData = new FormData();
   formData.append('file', file);
-  
   const response = await api.post('/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
 };
 
-export const analyzeEvidence = async (caseId: string, geminiKey?: string): Promise<AnalyzeResponse> => {
-  const response = await api.post('/analyze', {
-    case_id: caseId,
-    gemini_api_key: geminiKey || null
-  });
+export const analyzeEvidence = async (caseId: string): Promise<AnalyzeResponse> => {
+  const response = await api.post('/analyze', { case_id: caseId });
   return response.data;
+};
+
+export const getLockerItems = async (): Promise<LockerItem[]> => {
+  const response = await api.get('/locker');
+  return response.data.items;
+};
+
+export const startInvestigation = async (lockerFilename: string): Promise<AnalyzeResponse> => {
+  const response = await api.post('/investigation/start', { locker_filename: lockerFilename });
+  return response.data;
+};
+
+export const getSystemHealth = async (): Promise<AgentHealth[]> => {
+  const response = await api.get('/health');
+  return response.data.agents;
 };
 
 export const getGraphData = async (caseId: string) => {
@@ -48,8 +70,7 @@ export const getGraphData = async (caseId: string) => {
   return response.data;
 };
 
-export const getReportUrl = (caseId: string) => {
-  return `http://localhost:8000/api/report/${caseId}`;
-};
+export const getReportUrl = (caseId: string) =>
+  `http://localhost:8000/api/report/${caseId}`;
 
 export default api;
