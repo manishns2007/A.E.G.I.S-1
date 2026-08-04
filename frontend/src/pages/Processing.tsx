@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle2, CircleDashed, Loader2, AlertCircle } from 'lucide-react';
 import { analyzeEvidence } from '../services/api';

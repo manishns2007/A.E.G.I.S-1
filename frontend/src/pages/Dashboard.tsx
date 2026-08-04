@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, File, AlertCircle } from 'lucide-react';
 import { uploadEvidence } from '../services/api';

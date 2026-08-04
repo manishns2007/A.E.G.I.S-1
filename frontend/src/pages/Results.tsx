@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { Shield, Settings, Eye, Zap, FileText, CheckCircle2, XCircle } from 'lucide-react';
 import Graph from '../components/Graph';
