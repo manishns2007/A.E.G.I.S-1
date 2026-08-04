@@ -137,27 +137,32 @@ def parse_background_environment(image_path_or_bgr, api_key: str = None) -> dict
     raw_text = None
     last_error = "Unknown Gemini error."
 
-    # Try the newer google-genai SDK first, fall back to google-generativeai
+    # Try google.generativeai first (most standard and stable for API key usage)
     try:
-        from google import genai
-        client = genai.Client(api_key=api_key_to_use)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[prompt, pil_img]
-        )
-        raw_text = response.text.strip()
-    except Exception as e_new:
-        last_error = str(e_new)
-        try:
-            import google.generativeai as genai_old
-            genai_old.configure(api_key=api_key_to_use)
-            model = genai_old.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content([prompt, pil_img])
+        import google.generativeai as genai_old
+        genai_old.configure(api_key=api_key_to_use)
+        # Try gemini-1.5-flash, fallback to gemini-2.0-flash or gemini-1.5-pro
+        model = genai_old.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content([prompt, pil_img])
+        if response and response.text:
             raw_text = response.text.strip()
-        except Exception as e_old:
-            last_error = str(e_old)
+    except Exception as e_old:
+        last_error = f"google.generativeai error: {e_old}"
+        # Fallback to google-genai SDK
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key_to_use)
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[prompt, pil_img]
+            )
+            if response and response.text:
+                raw_text = response.text.strip()
+        except Exception as e_new:
+            last_error = f"Legacy SDK error: {e_old} | New SDK error: {e_new}"
 
     if raw_text is None:
+        print(f"[A.E.G.I.S. VLM ERROR] {last_error}")
         return _offline(f"Gemini API call failed: {last_error}")
 
     # ── 5. Strip optional markdown fences ────────────────────────────────

@@ -35,7 +35,7 @@ def detect_face_and_eyes_classical(img_bgr):
     h_img, w_img = img_bgr.shape[:2]
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
-    # 1. Face Detection via OpenCV Haar Cascade
+    # 1. Face Detection via OpenCV Haar Cascade (with multi-scale normalization)
     cascade_path = getattr(cv2.data, 'haarcascades', '')
     face_xml = os.path.join(cascade_path, 'haarcascade_frontalface_default.xml')
     eye_xml = os.path.join(cascade_path, 'haarcascade_eye.xml')
@@ -45,7 +45,20 @@ def detect_face_and_eyes_classical(img_bgr):
         try:
             face_cascade = cv2.CascadeClassifier(face_xml)
             if not face_cascade.empty():
-                faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(60, 60))
+                # Scale down for robust detection if resolution > 1000px
+                target_w = 800.0
+                scale_ratio = target_w / float(w_img) if w_img > target_w else 1.0
+                if scale_ratio < 1.0:
+                    small_gray = cv2.resize(gray, (int(w_img * scale_ratio), int(h_img * scale_ratio)))
+                else:
+                    small_gray = gray
+
+                detected_small = face_cascade.detectMultiScale(small_gray, scaleFactor=1.1, minNeighbors=4, minSize=(40, 40))
+                for (s_x, s_y, s_w, s_h) in detected_small:
+                    if scale_ratio < 1.0:
+                        faces.append((int(s_x / scale_ratio), int(s_y / scale_ratio), int(s_w / scale_ratio), int(s_h / scale_ratio)))
+                    else:
+                        faces.append((s_x, s_y, s_w, s_h))
         except Exception:
             pass
 

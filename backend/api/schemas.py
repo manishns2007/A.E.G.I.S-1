@@ -10,18 +10,60 @@ class AnalyzeRequest(BaseModel):
     case_id: str
     gemini_api_key: Optional[str] = None
 
-class StandardResult(BaseModel):
+class AgentResponse(BaseModel):
+    agent: str
     status: str
     processing_time: float
     confidence: Optional[float] = None
-    findings: Dict[str, Any]
-    error_message: Optional[str] = None
+    input: Dict[str, Any]
+    output: Dict[str, Any]
+    reasoning: List[str]
+    error: Optional[str] = None
 
-class AnalyzeResponse(BaseModel):
-    pipeline_status: Dict[str, Any]
-    privacy: StandardResult
-    enf: StandardResult
-    corneal: StandardResult
-    gemini: StandardResult
-    knowledge_graph: StandardResult
-    legal_report: StandardResult
+class MultiAgentInvestigationResponse(BaseModel):
+    case_id: str
+    intake: AgentResponse
+    privacy: AgentResponse
+    enf: AgentResponse
+    corneal: AgentResponse
+    vision: AgentResponse
+    fusion: AgentResponse
+    graph: AgentResponse
+    legal_report: AgentResponse
+    reasoning_chain: List[str]
+
+
+# ── Case-Based Ingestion ──────────────────────────────────────────────────────
+
+class EvidenceInventory(BaseModel):
+    images: int = 0
+    videos: int = 0
+    audio: int = 0
+    documents: int = 0
+    chats: int = 0
+    unknown: int = 0
+
+    @property
+    def total(self) -> int:
+        return self.images + self.videos + self.audio + self.documents + self.chats + self.unknown
+
+class CaseRegistrationResponse(BaseModel):
+    case_id: str
+    name: str
+    sha256: str
+    registered_at: str
+    inventory: EvidenceInventory
+    total_files: int
+    primary_evidence: str   # path of primary file fed to the pipeline
+    primary_filename: str   # display name
+
+class CaseLockerEntry(BaseModel):
+    case_id: str
+    name: str
+    registered_at: str
+    inventory: EvidenceInventory
+    total_files: int
+    status: str             # "Ready" | "Processing" | "Complete"
+
+class InvestigationStartRequest(BaseModel):
+    case_id: str

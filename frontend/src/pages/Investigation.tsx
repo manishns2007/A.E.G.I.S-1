@@ -5,7 +5,8 @@ import {
   Database, Shield, Zap, Eye, GitBranch, FileText, Cpu,
   CheckCircle2, Loader2, Circle, AlertTriangle, XCircle
 } from 'lucide-react';
-import { analyzeEvidence, startInvestigation } from '../services/api';
+import { startInvestigation } from '../services/api';
+import type { EvidenceInventory } from '../services/api';
 
 type AgentStatus = 'ready' | 'running' | 'completed' | 'warning' | 'failed';
 
@@ -58,7 +59,24 @@ const AGENTS: AgentDef[] = [
         lines.push(f.is_authentic ? 'Grid frequency AUTHENTIC. ✓' : 'Grid frequency ANOMALY detected. ⚠');
       } else {
         lines.push('ENF signal not available for this media type.');
-        lines.push('Authenticity assessment deferred to other signals.');
+        lines.push('Authenticity assessment deferred to physical vectors.');
+      }
+      return lines;
+    },
+  },
+  {
+    id: 'corneal',
+    label: 'Corneal Topology Agent',
+    shortLabel: 'CORNEAL TOPOLOGY',
+    icon: Eye,
+    mission: 'Analyze corneal specular highlights for environmental lighting consistency.',
+    logTemplate: (f) => {
+      const lines = ['Extracting high-resolution facial crops...', 'Isolating corneal glints via Haar cascades...'];
+      if (f?.is_quality_sufficient) {
+        lines.push(`Corneal symmetry analyzed. Score: ${f.symmetry_score?.toFixed(1) ?? 'N/A'}%`);
+        lines.push(f.is_authentic ? 'Lighting geometry AUTHENTIC. ✓' : 'Lighting geometry ANOMALY detected. ⚠');
+      } else {
+        lines.push('Resolution insufficient for specular reflection analysis.');
       }
       return lines;
     },
@@ -85,6 +103,22 @@ const AGENTS: AgentDef[] = [
     },
   },
   {
+    id: 'fusion',
+    label: 'Intelligence Fusion Agent',
+    shortLabel: 'INTEL FUSION',
+    icon: Cpu,
+    mission: 'Synthesize multi-vector outputs into a unified authenticity verdict.',
+    logTemplate: (f) => {
+      const lines = ['Fusing independent forensic vectors...'];
+      if (f?.verdict_badge) {
+        lines.push(`Synthesizing confidence score: ${f.overall_confidence ?? 0}%`);
+        lines.push(`Final Verdict: ${f.verdict_badge}`);
+      }
+      lines.push('Cross-vector reasoning generated. ✓');
+      return lines;
+    },
+  },
+  {
     id: 'graph',
     label: 'Knowledge Graph Agent',
     shortLabel: 'KNOWLEDGE GRAPH',
@@ -105,7 +139,7 @@ const AGENTS: AgentDef[] = [
     mission: 'Generate a court-admissible BSA 2023 compliant forensic report.',
     logTemplate: (_f: any) => [
       'Collecting forensic outputs from all agents...',
-      'Computing final authenticity verdict...',
+      'Computing final admissibility declaration...',
       'Attaching SHA-256 evidence hash...',
       'BSA 2023 statutory declaration generated. ✓',
     ],
@@ -123,7 +157,17 @@ const STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; icon: R
 const Investigation = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const state = location.state as { mode: 'locker' | 'upload'; lockerFilename?: string; caseId?: string; evidenceName?: string } | null;
+  const state = location.state as {
+    caseId?: string;
+    evidenceName?: string;
+    inventory?: EvidenceInventory;
+    totalFiles?: number;
+    // legacy
+    mode?: string;
+    lockerFilename?: string;
+  } | null;
+
+  const inventory = state?.inventory;
 
   const [agentStatuses, setAgentStatuses] = useState<Record<string, AgentStatus>>(
     Object.fromEntries(AGENTS.map(a => [a.id, 'ready']))
@@ -168,34 +212,45 @@ const Investigation = () => {
     hasStarted.current = true;
 
     const run = async () => {
-      // ── 1. Evidence Intake (immediate) ──────────────────────────
+      // ── 1. Evidence Intake ───────────────────────────────────────
       setStatus('intake', 'running');
       setOrchestratorStatus('Dispatching Evidence Intake Agent...');
-      await streamLines('EVIDENCE INTAKE', [
-        'Case registered with A.E.G.I.S. Orchestrator.',
-        'SHA-256 cryptographic hash computing...',
-      ], 'text-primary');
+
+      const totalFiles = state?.totalFiles ?? 1;
+      const inv = inventory;
+      const intakeLines = [
+        `Case registered: ${state?.evidenceName ?? 'Unknown evidence'}`,
+        `Total evidence files discovered: ${totalFiles}`,
+        ...(inv ? [
+          inv.images    > 0 ? `  · ${inv.images} image file${inv.images !== 1 ? 's' : ''}`       : '',
+          inv.videos    > 0 ? `  · ${inv.videos} video file${inv.videos !== 1 ? 's' : ''}`       : '',
+          inv.audio     > 0 ? `  · ${inv.audio} audio file${inv.audio !== 1 ? 's' : ''}`         : '',
+          inv.documents > 0 ? `  · ${inv.documents} document${inv.documents !== 1 ? 's' : ''}`   : '',
+          inv.chats     > 0 ? `  · ${inv.chats} chat export${inv.chats !== 1 ? 's' : ''}`        : '',
+        ].filter(Boolean) : []),
+        'SHA-256 custody hash generated.',
+        'Investigation queue created. ✓',
+      ];
+      await streamLines('EVIDENCE INTAKE', intakeLines, 'text-primary');
 
       let result: any;
       try {
-        if (state?.mode === 'locker') {
-          result = await startInvestigation(state.lockerFilename!);
+        // Primary API: case_id based (works for CASE-* and SAMPLE-* ids)
+        const activeCaseId = state?.caseId ?? '';
+        if (activeCaseId) {
+          result = await startInvestigation(activeCaseId);
         } else {
-          result = await analyzeEvidence(state?.caseId ?? '');
+          throw new Error('No case ID provided to Investigation page.');
         }
       } catch (err: any) {
         const msg = err.response?.data?.detail || err.message || 'Unknown error';
         setError(msg);
-        AGENTS.forEach(a => {
-          if (agentStatuses[a.id] === 'running' || agentStatuses[a.id] === 'ready') {
-            setStatus(a.id, 'failed');
-          }
-        });
+        AGENTS.forEach(_a => setStatus(_a.id, 'failed'));
         setOrchestratorStatus('Investigation halted — pipeline error.');
         return;
       }
 
-      const resolvedCaseId = result.pipeline_status?.case_id ?? state?.caseId ?? '';
+      const resolvedCaseId = result.case_id ?? state?.caseId ?? '';
       setCaseId(resolvedCaseId);
 
       await streamLines('EVIDENCE INTAKE', [
@@ -207,7 +262,7 @@ const Investigation = () => {
       // ── 2. Privacy Shield ───────────────────────────────────────
       setStatus('privacy', 'running');
       setOrchestratorStatus('Dispatching Privacy Shield Agent...');
-      const privacyFindings = result.privacy?.findings ?? {};
+      const privacyFindings = result.privacy?.output ?? {};
       const privacyLines = AGENTS[1].logTemplate(privacyFindings);
       await streamLines('PRIVACY SHIELD', privacyLines, 'text-cyan-400');
       setStatus('privacy', result.privacy?.status === 'failed' ? 'failed' : 'completed');
@@ -215,34 +270,52 @@ const Investigation = () => {
       // ── 3. ENF Physics ──────────────────────────────────────────
       setStatus('enf', 'running');
       setOrchestratorStatus('Dispatching ENF Physics Agent...');
-      const enfFindings = result.enf?.findings ?? {};
+      const enfFindings = result.enf?.output ?? {};
       const enfLines = AGENTS[2].logTemplate(enfFindings);
       await streamLines('ENF PHYSICS', enfLines, 'text-yellow-400');
       const enfStatus = result.enf?.status === 'failed' ? 'failed'
         : result.enf?.status === 'warning' ? 'warning' : 'completed';
       setStatus('enf', enfStatus);
+      
+      // ── 4. Corneal Topology ─────────────────────────────────────
+      setStatus('corneal', 'running');
+      setOrchestratorStatus('Dispatching Corneal Topology Agent...');
+      const cornealFindings = result.corneal?.output ?? {};
+      const cornealLines = AGENTS[3].logTemplate(cornealFindings);
+      await streamLines('CORNEAL TOPOLOGY', cornealLines, 'text-blue-400');
+      const cornealStatus = result.corneal?.status === 'failed' ? 'failed'
+        : result.corneal?.status === 'warning' ? 'warning' : 'completed';
+      setStatus('corneal', cornealStatus);
 
-      // ── 4. Vision Intelligence ──────────────────────────────────
+      // ── 5. Vision Intelligence ──────────────────────────────────
       setStatus('vision', 'running');
       setOrchestratorStatus('Dispatching Vision Intelligence Agent...');
-      const visionFindings = result.gemini?.findings ?? {};
-      const visionLines = AGENTS[3].logTemplate(visionFindings);
+      const visionFindings = result.vision?.output ?? {};
+      const visionLines = AGENTS[4].logTemplate(visionFindings);
       await streamLines('VISION INTEL', visionLines, 'text-purple-400');
-      const visionStatus = result.gemini?.status === 'failed' ? 'failed'
-        : result.gemini?.status === 'warning' || visionFindings?.status === 'offline' ? 'warning' : 'completed';
+      const visionStatus = result.vision?.status === 'failed' ? 'failed'
+        : result.vision?.status === 'warning' || visionFindings?.status === 'offline' ? 'warning' : 'completed';
       setStatus('vision', visionStatus);
 
-      // ── 5. Knowledge Graph ──────────────────────────────────────
+      // ── 6. Intelligence Fusion ──────────────────────────────────
+      setStatus('fusion', 'running');
+      setOrchestratorStatus('Dispatching Intelligence Fusion Agent...');
+      const fusionFindings = result.fusion?.output ?? {};
+      const fusionLines = AGENTS[5].logTemplate(fusionFindings);
+      await streamLines('INTEL FUSION', fusionLines, 'text-pink-400');
+      setStatus('fusion', result.fusion?.status === 'failed' ? 'failed' : 'completed');
+
+      // ── 7. Knowledge Graph ──────────────────────────────────────
       setStatus('graph', 'running');
       setOrchestratorStatus('Dispatching Knowledge Graph Agent...');
-      const graphLines = AGENTS[4].logTemplate(result.knowledge_graph?.findings ?? {});
+      const graphLines = AGENTS[6].logTemplate(result.graph?.output ?? {});
       await streamLines('KNOWLEDGE GRAPH', graphLines, 'text-green-400');
-      setStatus('graph', result.knowledge_graph?.status === 'failed' ? 'failed' : 'completed');
+      setStatus('graph', result.graph?.status === 'failed' ? 'failed' : 'completed');
 
-      // ── 6. Legal Report ─────────────────────────────────────────
+      // ── 8. Legal Report ─────────────────────────────────────────
       setStatus('legal', 'running');
       setOrchestratorStatus('Dispatching Legal Report Agent...');
-      const legalLines = AGENTS[5].logTemplate(result.legal_report?.findings ?? {});
+      const legalLines = AGENTS[7].logTemplate(result.legal_report?.output ?? {});
       await streamLines('LEGAL REPORT', legalLines, 'text-orange-400');
       setStatus('legal', 'completed');
 

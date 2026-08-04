@@ -11,15 +11,16 @@ import Graph from '../components/Graph';
 const AGENT_CARDS = [
   { key: 'privacy',       label: 'Privacy Shield',       icon: Shield,    color: 'text-cyan-400',   border: 'border-cyan-400/20',   bg: 'bg-cyan-400/5' },
   { key: 'enf',           label: 'ENF Physics',          icon: Zap,       color: 'text-yellow-400', border: 'border-yellow-400/20', bg: 'bg-yellow-400/5' },
-  { key: 'corneal',       label: 'Corneal Topology',     icon: Eye,       color: 'text-purple-400', border: 'border-purple-400/20', bg: 'bg-purple-400/5' },
-  { key: 'gemini',        label: 'Vision Intelligence',  icon: Eye,       color: 'text-purple-400', border: 'border-purple-400/20', bg: 'bg-purple-400/5' },
-  { key: 'knowledge_graph', label: 'Knowledge Graph',   icon: GitBranch, color: 'text-green-400',  border: 'border-green-400/20',  bg: 'bg-green-400/5' },
+  { key: 'corneal',       label: 'Corneal Topology',     icon: Eye,       color: 'text-blue-400', border: 'border-blue-400/20', bg: 'bg-blue-400/5' },
+  { key: 'vision',        label: 'Vision Intelligence',  icon: Eye,       color: 'text-purple-400', border: 'border-purple-400/20', bg: 'bg-purple-400/5' },
+  { key: 'fusion',        label: 'Intelligence Fusion',  icon: Target,    color: 'text-pink-400', border: 'border-pink-400/20', bg: 'bg-pink-400/5' },
+  { key: 'graph',         label: 'Knowledge Graph',      icon: GitBranch, color: 'text-green-400',  border: 'border-green-400/20',  bg: 'bg-green-400/5' },
   { key: 'legal_report',  label: 'Legal Report',         icon: FileText,  color: 'text-orange-400', border: 'border-orange-400/20', bg: 'bg-orange-400/5' },
 ];
 
-// Derive a human-readable key finding from agent findings
+// Derive a human-readable key finding from agent outputs
 const getKeyFinding = (key: string, agent: any): string => {
-  const f = agent?.findings ?? {};
+  const f = agent?.output ?? {};
   switch (key) {
     case 'privacy':
       return `${f.count ?? 0} subject${f.count !== 1 ? 's' : ''} redacted`;
@@ -31,11 +32,13 @@ const getKeyFinding = (key: string, agent: any): string => {
       return f.is_quality_sufficient
         ? `Symmetry: ${f.symmetry_score?.toFixed(1)}%`
         : (f.verdict_text ?? 'Quality insufficient');
-    case 'gemini':
+    case 'vision':
       return f.status === 'offline'
-        ? 'Gemini Vision not configured'
+        ? 'Vision Intel not configured'
         : `${f.environmental_objects?.length ?? 0} entities extracted`;
-    case 'knowledge_graph':
+    case 'fusion':
+      return f.verdict_badge ?? 'Synthesis complete';
+    case 'graph':
       return f.historical_db_connected ? 'Graph with historical links' : 'Isolated case graph compiled';
     case 'legal_report':
       return f.verdict_badge ?? 'Report generated';
@@ -70,8 +73,8 @@ const Results = () => {
     );
   }
 
-  const { privacy, enf, corneal, gemini, legal_report } = data;
-  const isAuthentic = legal_report?.findings?.is_authentic;
+  const { privacy, enf, corneal, vision, fusion, graph, legal_report } = data;
+  const isAuthentic = legal_report?.output?.is_authentic;
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4">
@@ -91,7 +94,7 @@ const Results = () => {
           <div>
             <p className="text-xs text-textMuted uppercase tracking-widest mb-1">A.E.G.I.S. Forensic Verdict</p>
             <h2 className={`text-2xl font-bold ${isAuthentic ? 'text-success' : 'text-danger'}`}>
-              {legal_report?.findings?.verdict_badge ?? 'VERDICT UNAVAILABLE'}
+              {legal_report?.output?.verdict_badge ?? 'VERDICT UNAVAILABLE'}
             </h2>
             <p className="text-sm text-secondary mt-1">
               Determined by multi-agent forensic analysis · Case <span className="font-mono text-primary">{caseId}</span>
@@ -201,7 +204,7 @@ const Results = () => {
               </div>
               <div className="metric-card">
                 <div className="metric-label">Subjects Redacted</div>
-                <div className="metric-value">{privacy?.findings?.count ?? 0}</div>
+                <div className="metric-value">{privacy?.output?.count ?? 0}</div>
               </div>
             </div>
           </div>
@@ -215,13 +218,13 @@ const Results = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="metric-card">
                 <div className="metric-label">Grid Verdict</div>
-                <div className={`metric-value text-sm ${enf?.findings?.is_authentic ? 'text-success' : 'text-danger'}`}>
-                  {enf?.findings?.verdict_text ?? 'N/A'}
+                <div className={`metric-value text-sm ${enf?.output?.is_authentic ? 'text-success' : 'text-danger'}`}>
+                  {enf?.output?.verdict_text ?? 'N/A'}
                 </div>
               </div>
               <div className="metric-card">
                 <div className="metric-label">Peak/Noise Ratio</div>
-                <div className="metric-value">{enf?.findings?.enf_ratio?.toFixed(2) ?? '—'}</div>
+                <div className="metric-value">{enf?.output?.enf_ratio?.toFixed(2) ?? '—'}</div>
               </div>
             </div>
           </div>
@@ -235,31 +238,75 @@ const Results = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="metric-card">
                 <div className="metric-label">Verdict</div>
-                <div className={`metric-value text-sm ${corneal?.findings?.is_authentic ? 'text-success' : 'text-danger'}`}>
-                  {corneal?.findings?.verdict_text ?? 'UNAVAILABLE'}
+                <div className={`metric-value text-sm ${corneal?.output?.is_authentic ? 'text-success' : 'text-danger'}`}>
+                  {corneal?.output?.verdict_text ?? 'UNAVAILABLE'}
                 </div>
               </div>
               <div className="metric-card">
                 <div className="metric-label">Symmetry Score</div>
-                <div className="metric-value">{corneal?.findings?.symmetry_score?.toFixed(1) ?? '0.0'}%</div>
+                <div className="metric-value">{corneal?.output?.symmetry_score?.toFixed(1) ?? '0.0'}%</div>
               </div>
               <div className="metric-card">
                 <div className="metric-label">Quality Sufficient</div>
-                <div className={`metric-value ${corneal?.findings?.is_quality_sufficient ? 'text-success' : 'text-accent'}`}>
-                  {corneal?.findings?.is_quality_sufficient ? 'YES' : 'NO'}
+                <div className={`metric-value ${corneal?.output?.is_quality_sufficient ? 'text-success' : 'text-accent'}`}>
+                  {corneal?.output?.is_quality_sufficient ? 'YES' : 'NO'}
                 </div>
               </div>
               <div className="metric-card">
                 <div className="metric-label">Anomaly Score</div>
-                <div className="metric-value">{corneal?.findings?.anomaly_score?.toFixed(1) ?? '—'}%</div>
+                <div className="metric-value">{corneal?.output?.anomaly_score?.toFixed(1) ?? '—'}%</div>
               </div>
             </div>
-            {corneal?.findings?.explanation?.length > 0 && (
+            {corneal?.output?.explanation?.length > 0 && (
               <div className="mt-4 bg-surfaceHover border border-border rounded p-4">
                 <p className="text-xs text-textMuted uppercase tracking-wider mb-2 font-semibold">Forensic Explanation</p>
                 <ul className="space-y-1">
-                  {corneal.findings.explanation.slice(0, 5).map((exp: string, i: number) => (
+                  {corneal.output.explanation.slice(0, 5).map((exp: string, i: number) => (
                     <li key={i} className="text-xs text-secondary leading-relaxed">· {exp}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          
+          {/* Fusion */}
+          <div className="card md:col-span-2">
+            <div className="flex items-center space-x-3 mb-4">
+              <Target className="w-5 h-5 text-pink-400" />
+              <h3 className="font-bold text-textMain">Intelligence Fusion Agent</h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="metric-card">
+                <div className="metric-label">Verdict</div>
+                <div className={`metric-value text-sm ${fusion?.output?.is_authentic ? 'text-success' : 'text-danger'}`}>
+                  {fusion?.output?.verdict_badge ?? 'UNAVAILABLE'}
+                </div>
+              </div>
+              <div className="metric-card">
+                <div className="metric-label">Confidence Score</div>
+                <div className="metric-value">{fusion?.output?.overall_confidence?.toFixed(1) ?? '0.0'}%</div>
+              </div>
+              <div className="metric-card">
+                <div className="metric-label">Active Vectors</div>
+                <div className="metric-value">{fusion?.output?.active_vectors_count ?? 0}</div>
+              </div>
+            </div>
+            {fusion?.output?.synthesized_reasoning?.length > 0 && (
+              <div className="mt-4 bg-surfaceHover border border-border rounded p-4">
+                <p className="text-xs text-textMuted uppercase tracking-wider mb-2 font-semibold">Synthesized Reasoning</p>
+                <ul className="space-y-1">
+                  {fusion.output.synthesized_reasoning.map((exp: string, i: number) => (
+                    <li key={i} className="text-xs text-secondary leading-relaxed">· {exp}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {fusion?.output?.investigative_leads?.length > 0 && (
+              <div className="mt-4 bg-surfaceHover border border-border rounded p-4">
+                <p className="text-xs text-textMuted uppercase tracking-wider mb-2 font-semibold">Investigative Leads</p>
+                <ul className="space-y-1">
+                  {fusion.output.investigative_leads.map((exp: string, i: number) => (
+                    <li key={i} className="text-xs text-secondary leading-relaxed text-pink-400">· {exp}</li>
                   ))}
                 </ul>
               </div>
@@ -286,7 +333,7 @@ const Results = () => {
               <Eye className="w-5 h-5 text-purple-400" />
               <h3 className="font-bold text-textMain">Vision Intelligence Agent</h3>
             </div>
-            {gemini?.findings?.status === 'offline' ? (
+            {vision?.output?.status === 'offline' ? (
               <div className="flex items-center space-x-3 text-accent text-sm">
                 <AlertTriangle className="w-5 h-5 flex-shrink-0" />
                 <p>Gemini Vision API not configured on server. Set the <code className="font-mono bg-surfaceHover px-1 rounded">GEMINI_API_KEY</code> environment variable to enable semantic extraction.</p>
@@ -296,7 +343,7 @@ const Results = () => {
                 <div>
                   <h4 className="text-xs font-bold text-textMuted uppercase mb-3">Extracted Entities</h4>
                   <div className="flex flex-wrap gap-2">
-                    {gemini?.findings?.environmental_objects?.map((obj: any, idx: number) => (
+                    {vision?.output?.environmental_objects?.map((obj: any, idx: number) => (
                       <span key={idx} className="bg-surfaceHover border border-border px-3 py-1 rounded text-sm text-textMain">
                         {obj.entity ?? obj}
                       </span>
@@ -306,9 +353,9 @@ const Results = () => {
                 <div>
                   <h4 className="text-xs font-bold text-textMuted uppercase mb-3">Scene Context</h4>
                   <div className="bg-surfaceHover border border-border rounded p-4 text-sm text-textMain space-y-2">
-                    <p><span className="text-textMuted">Scene Type:</span> {gemini?.findings?.scene_type ?? 'Unknown'}</p>
-                    <p><span className="text-textMuted">Spatial Layout:</span> {gemini?.findings?.spatial_layout ?? 'Unknown'}</p>
-                    <p><span className="text-textMuted">Lighting:</span> {gemini?.findings?.lighting_type ?? 'Unknown'}</p>
+                    <p><span className="text-textMuted">Scene Type:</span> {vision?.output?.scene_type ?? 'Unknown'}</p>
+                    <p><span className="text-textMuted">Spatial Layout:</span> {vision?.output?.spatial_layout ?? 'Unknown'}</p>
+                    <p><span className="text-textMuted">Lighting:</span> {vision?.output?.lighting_type ?? 'Unknown'}</p>
                   </div>
                 </div>
               </div>
