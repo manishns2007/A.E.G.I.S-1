@@ -17,21 +17,6 @@ from scipy import fftpack, signal
 def analyze_video_enf(video_path: str, target_freq: float = 50.0, tolerance_hz: float = 2.5, max_frames: int = 300):
     """
     Performs FFT & STFT Spectrogram analysis on video luminance time-series.
-    
-    Returns a dict with:
-      - fps: sampling frequency (frames per sec)
-      - luminance_signal: raw luminance time-series I(t)
-      - detrended_signal: detrended luminance time-series
-      - time_stamps: list of time points in seconds
-      - freqs: frequency axis (Hz)
-      - spectrum: FFT magnitude spectrum
-      - stft_times, stft_freqs, stft_matrix: 2D Spectrogram data
-      - peak_50hz_power: power at target frequency
-      - background_power: noise floor power
-      - enf_ratio: ratio of 50 Hz peak power to noise floor
-      - is_authentic: bool verdict
-      - confidence: float score (0-100%)
-      - verdict_text: str
     """
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -49,7 +34,6 @@ def analyze_video_enf(video_path: str, target_freq: float = 50.0, tolerance_hz: 
         if not ret:
             break
             
-        # Convert BGR to Grayscale for mean spatial luminance extraction
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         mean_lum = float(np.mean(gray))
         luminance_signal.append(mean_lum)
@@ -63,14 +47,10 @@ def analyze_video_enf(video_path: str, target_freq: float = 50.0, tolerance_hz: 
         
     time_stamps = [i / fps for i in range(N)]
     
-    # Detrend luminance signal to remove slow illumination shifts / camera movement
     signal_detrended = signal.detrend(luminance_signal)
-    
-    # Apply Hanning window to reduce spectral leakage
     window = np.hanning(N)
     windowed_signal = signal_detrended * window
     
-    # Perform Fast Fourier Transform (FFT) via SciPy
     fft_vals = fftpack.fft(windowed_signal)
     fft_freqs = fftpack.fftfreq(N, d=1.0/fps)
     
@@ -78,7 +58,6 @@ def analyze_video_enf(video_path: str, target_freq: float = 50.0, tolerance_hz: 
     freqs = fft_freqs[pos_mask]
     spectrum = np.abs(fft_vals[pos_mask])
     
-    # Nyquist limit check
     nyquist = fps / 2.0
     
     effective_target = target_freq
@@ -87,7 +66,6 @@ def analyze_video_enf(video_path: str, target_freq: float = 50.0, tolerance_hz: 
         if effective_target == 0:
             effective_target = np.abs(100.0 - round(100.0 / fps) * fps)
             
-    # Search band +/- tolerance_hz around target frequency
     band_mask = (freqs >= max(0.5, effective_target - tolerance_hz)) & (freqs <= min(nyquist, effective_target + tolerance_hz))
     noise_mask = (freqs >= 1.0) & (freqs <= nyquist) & (~band_mask)
     
@@ -100,12 +78,12 @@ def analyze_video_enf(video_path: str, target_freq: float = 50.0, tolerance_hz: 
         background_power = 1.0
         enf_ratio = 1.0
         
-    # Short-Time Fourier Transform (STFT) 2D Spectrogram via SciPy
     nperseg = min(N // 2, 32) if N >= 32 else N
     stft_freqs, stft_times, Sxx = signal.spectrogram(np.array(signal_detrended), fs=fps, nperseg=nperseg)
     
-    is_authentic = (enf_ratio >= 2.2)
-    confidence = min(99.4, max(45.0, (enf_ratio / 3.5) * 100.0)) if is_authentic else min(98.8, max(60.0, (1.0 - enf_ratio / 2.2) * 100.0))
+    # Authentic 50Hz grid physics criteria: Peak ratio >= 5.0 AND absolute peak power >= 0.5
+    is_authentic = (enf_ratio >= 5.0) and (peak_50hz_power >= 0.5)
+    confidence = min(99.4, max(45.0, (enf_ratio / 10.0) * 100.0)) if is_authentic else min(98.8, max(60.0, (1.0 - enf_ratio / 5.0) * 100.0))
     
     verdict_text = "AUTHENTIC REAL-WORLD CAPTURE (50 Hz Grid Hum Verified)" if is_authentic else "SYNTHETIC AI FABRICATION (50 Hz Grid Signal Missing)"
     

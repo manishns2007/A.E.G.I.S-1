@@ -49,7 +49,7 @@ st.markdown("""
     </div>
     <p style="color: #cbd5e1; font-size: 0.95rem; margin-top: 10px; margin-bottom: 0;">
         Shifting digital forensics away from traumatizing victim pixel-matching toward analyzing invisible environmental physics, 
-        corneal specular topology, and spatial knowledge graphs — Fully compliant with Section 63 of Bharatiya Sakshya Adhiniyam (BSA), 2023.
+        multi-signal image forensic scoring, and spatial knowledge graphs — Fully compliant with Section 63 of Bharatiya Sakshya Adhiniyam (BSA), 2023.
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -120,7 +120,7 @@ with open(active_path, "rb") as f:
 sha256_custody_hash = legal_docket.compute_sha256(file_bytes)
 
 # Execute Core Forensic Modules in Real-Time
-@st.cache_data(show_spinner="Executing Real-Time Agentic Forensic Pipeline...")
+@st.cache_data(show_spinner="Executing Real-Time Multi-Signal Agentic Pipeline...")
 def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str):
     results = {}
     
@@ -149,9 +149,9 @@ def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str):
             "freqs": [], "spectrum": [], "luminance_signal": [], "time_stamps": []
         }
         
-    # 3. Corneal Specular Topology Analyzer (for images or video frame crop)
+    # 3. Multi-Signal Corneal Specular Topology & Image Forensic Engine
     img_for_corneal = cv2.imread(file_path) if not is_vid else results["privacy"]["img_bgr"]
-    results["corneal"] = corneal_analyzer.analyze_corneal_specular_topology(img_for_corneal)
+    results["corneal"] = corneal_analyzer.analyze_corneal_specular_topology(img_for_corneal, file_path=file_path)
     
     # 4. Visuo-Acoustic Knowledge Graphing (VLM background extraction)
     results["vlm"] = vlm_extractor.parse_background_environment(results["privacy"]["shielded_bgr"], gemini_api_key)
@@ -183,7 +183,7 @@ tab_overview, tab_privacy, tab_enf, tab_corneal, tab_graph, tab_legal = st.tabs(
     "🛡️ Ingestion & Overview",
     "🙈 Agentic Privacy Shield",
     "⚡ ENF Physics Engine",
-    "👁️ Corneal Specular Topology",
+    "👁️ Multi-Signal Image Forensics",
     "🕸️ Visuo-Acoustic Knowledge Graph",
     "⚖️ BSA 2023 Legal Docket"
 ])
@@ -241,10 +241,10 @@ with tab_overview:
         """, unsafe_allow_html=True)
     with col4:
         c_score = forensic_data['corneal'].get('symmetry_score', 0.0)
-        c_color = "metric-status-safe" if c_score >= 75.0 else "metric-status-threat"
+        c_color = "metric-status-safe" if c_score >= 55.0 else "metric-status-threat"
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-label">Corneal Symmetry Score</div>
+            <div class="metric-label">Multi-Signal Integrity Score</div>
             <div class="metric-value {c_color}">{c_score:.1f}%</div>
         </div>
         """, unsafe_allow_html=True)
@@ -256,14 +256,14 @@ with tab_overview:
         st.markdown(f"""
         <div style="background-color: rgba(0, 230, 118, 0.1); border: 2px solid #00e676; border-radius: 10px; padding: 20px; text-align: center;">
             <h3 style="color: #00e676; margin: 0;">✅ VERDICT: AUTHENTIC REAL-WORLD CAPTURE</h3>
-            <p style="color: #cbd5e1; margin-top: 6px;">Media exhibits consistent 50 Hz power grid hum physics and symmetric corneal light reflection topology.</p>
+            <p style="color: #cbd5e1; margin-top: 6px;">Media exhibits consistent 50 Hz power grid hum physics, camera EXIF metadata, and multi-signal optical integrity.</p>
         </div>
         """, unsafe_allow_html=True)
     else:
         st.markdown(f"""
         <div style="background-color: rgba(255, 75, 75, 0.1); border: 2px solid #ff4b4b; border-radius: 10px; padding: 20px; text-align: center;">
             <h3 style="color: #ff4b4b; margin: 0;">🚨 VERDICT: SYNTHETIC AI GENERATED FABRICATION</h3>
-            <p style="color: #cbd5e1; margin-top: 6px;">Media exhibits physical frequency anomalies or asymmetric corneal specular diffusion artifacts created by generative models.</p>
+            <p style="color: #cbd5e1; margin-top: 6px;">Media exhibits multi-signal forensic anomalies (asymmetric corneal specular glints, stripped EXIF, zero sensor noise, or frequency anomalies).</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -283,7 +283,7 @@ Jurisdiction: {district}
         st.markdown("""
         - **Vector 1**: Automated Privacy Shield (Mental Health Safeguard)
         - **Vector 2**: SciPy FFT Electrical Network Frequency (50 Hz AC Grid Physics)
-        - **Vector 3**: Corneal Specular Topology (Glint Symmetry Geometry)
+        - **Vector 3**: Multi-Signal Image Forensic Scoring Engine (8 Independent Optical & Compression Vectors)
         - **Vector 4**: Visuo-Acoustic Knowledge Graphing (Background Feature Extraction)
         - **Vector 5**: BSA 2023 Section 63 Dynamic Legal Docket
         """)
@@ -318,7 +318,6 @@ with tab_enf:
     if not is_video:
         st.warning("⚠️ **Note**: Active evidence is a static image. ENF physics vector requires a frame-by-frame video luminance time-series stream. Select a video from the sidebar to analyze live grid frequencies.")
     
-    # Dynamic Interactive Parameter Controls
     st.markdown("#### 🎛️ Real-Time Interactive Physics Parameters")
     p_col1, p_col2 = st.columns(2)
     with p_col1:
@@ -326,7 +325,6 @@ with tab_enf:
     with p_col2:
         tolerance_f = st.slider("Frequency Search Band Tolerance (± Hz)", min_value=0.5, max_value=5.0, value=2.5, step=0.5)
         
-    # Re-run ENF live with interactive parameters if video
     if is_video:
         enf = enf_analyzer.analyze_video_enf(active_path, target_freq=target_f, tolerance_hz=tolerance_f)
     else:
@@ -347,7 +345,6 @@ with tab_enf:
             
         st.markdown("---")
         
-        # 1. Frame Luminance Waveform Plot I(t)
         if enf.get("time_stamps") and enf.get("luminance_signal"):
             st.markdown("#### 📈 1. Frame-by-Frame Pixel Luminance Waveform $I(t)$")
             fig_wave = go.Figure()
@@ -369,7 +366,6 @@ with tab_enf:
             )
             st.plotly_chart(fig_wave, use_container_width=True)
             
-        # 2. Fast Fourier Transform (FFT) Magnitude Spectrum
         if enf.get("freqs") and len(enf["freqs"]) > 0:
             st.markdown("#### 📉 2. SciPy Fast Fourier Transform (FFT) Magnitude Spectrum")
             fig_fft = px.line(
@@ -377,7 +373,6 @@ with tab_enf:
                 labels={"x": "Frequency (Hz)", "y": "FFT Spectral Magnitude"},
                 title=f"Luminance Power Spectrum (Target: {target_f} Hz ± {tolerance_f} Hz)"
             )
-            # Add shaded band around target grid frequency
             eff_t = enf.get("effective_target_freq", 50.0)
             fig_fft.add_vrect(
                 x0=max(0, eff_t - tolerance_f), x1=min(enf["fps"]/2, eff_t + tolerance_f),
@@ -388,7 +383,6 @@ with tab_enf:
             fig_fft.update_layout(paper_bgcolor="#0a0e17", plot_bgcolor="#0f172a", font=dict(color="#e2e8f0"))
             st.plotly_chart(fig_fft, use_container_width=True)
             
-        # 3. STFT 2D Spectrogram Heatmap
         if enf.get("stft_matrix") and len(enf["stft_matrix"]) > 0:
             st.markdown("#### 🌡️ 3. SciPy Short-Time Fourier Transform (STFT) 2D Spectrogram Heatmap")
             fig_spec = go.Figure(data=go.Heatmap(
@@ -404,25 +398,64 @@ with tab_enf:
                 margin=dict(l=20, r=20, t=30, b=20)
             )
             st.plotly_chart(fig_spec, use_container_width=True)
-            
-        st.markdown("""
-        > **Scientific Forensic Rationale**: Artificial intelligence video generators (Sora, Runway, Pika, Flux) render frames frame-by-frame or via latent noise projection without modeling real-world AC power grid electrical oscillations. Real cameras recording under grid lighting capture subtle 50 Hz / 100 Hz brightness hums that can be mathematically verified using SciPy FFT and STFT.
-        """)
 
-# ==================== TAB 4: CORNEAL SPECULAR TOPOLOGY ====================
+# ==================== TAB 4: MULTI-SIGNAL IMAGE FORENSICS ====================
 with tab_corneal:
-    st.markdown("### 👁️ CORNEAL SPECULAR TOPOLOGY ANALYZER")
-    st.markdown("*Zooms into human eyes in high-resolution portraits to map corneal light reflections (glints) and compare specular geometry between eyes.*")
+    st.markdown("### 👁️ MULTI-SIGNAL IMAGE FORENSIC SCORING ENGINE")
+    st.markdown("*Combines 8 independent computer vision & optical physics indicators to eliminate false positives on real photographs.*")
     
     corneal = forensic_data["corneal"]
     
-    c_col1, c_col2, c_col3 = st.columns(3)
+    c_col1, c_col2, c_col3, c_col4 = st.columns(4)
     with c_col1:
-        st.metric("Corneal Symmetry Score", f"{corneal['symmetry_score']:.1f}%", delta="Authentic >= 75%")
+        st.metric("Multi-Signal Anomaly Score", f"{corneal.get('anomaly_score', 20.0):.1f}%", delta="Authentic < 45%")
     with c_col2:
-        st.metric("Left Eye Glints", f"{corneal['l_count']} Glint Contour(s)")
+        st.metric("Detection Confidence", f"{corneal.get('confidence', 90.0):.1f}%")
     with c_col3:
-        st.metric("Right Eye Glints", f"{corneal['r_count']} Glint Contour(s)")
+        st.metric("Corneal Integrity Score", f"{corneal['symmetry_score']:.1f}%")
+    with c_col4:
+        st.metric("Verdict", "AUTHENTIC REAL PHOTO" if corneal['is_authentic'] else "SYNTHETIC AI FABRICATION")
+        
+    st.markdown("---")
+    
+    # 8-Feature Contributing Breakdown Plot
+    st.markdown("#### 📊 8 Independent Forensic Indicator Scores & Weighted Impacts")
+    
+    feats = corneal.get("contributing_features", {})
+    if feats:
+        feature_labels = list(feats.keys())
+        scores = [feats[k]["score"] for k in feature_labels]
+        impacts = [feats[k]["weighted_impact"] for k in feature_labels]
+        
+        fig_feats = go.Figure()
+        fig_feats.add_trace(go.Bar(
+            y=[f.replace("_", " ").title() for f in feature_labels],
+            x=scores,
+            name='Raw Indicator Anomaly Score (0-100)',
+            orientation='h',
+            marker=dict(color='#ffb703')
+        ))
+        fig_feats.add_trace(go.Bar(
+            y=[f.replace("_", " ").title() for f in feature_labels],
+            x=impacts,
+            name='Weighted Ensemble Impact',
+            orientation='h',
+            marker=dict(color='#00d2ff')
+        ))
+        fig_feats.update_layout(
+            bmode='group', title="Forensic Indicator Anomaly Vector Breakdown",
+            paper_bgcolor="#0a0e17", plot_bgcolor="#0f172a", font=dict(color="#e2e8f0"),
+            xaxis_title="Anomaly Score Value", yaxis_title="Forensic Indicator"
+        )
+        st.plotly_chart(fig_feats, use_container_width=True)
+        
+    st.markdown("---")
+    
+    # Detailed Plain-English Explanations for Every Feature
+    st.markdown("#### 🔬 Plain-English Scientific Feature Explanations")
+    exps = corneal.get("explanation", [])
+    for exp in exps:
+        st.markdown(f"- 📌 {exp}")
         
     st.markdown("---")
     
@@ -437,10 +470,6 @@ with tab_corneal:
         if corneal["r_crop"] is not None and corneal["r_crop"].size > 0:
             st.image(cv2.cvtColor(corneal["r_crop"], cv2.COLOR_BGR2RGB), caption="Right Eye Region of Interest (ROI)", width=250)
             st.image(corneal["r_mask"], caption="Isolated Right Specular Light Reflection Glint", width=250)
-            
-    st.markdown("""
-    > **Optical Forensic Rationale**: In real photography under distant ambient lighting, both left and right corneas reflect identical lighting geometry. Generative AI diffusion models process left and right eye latents independently, producing mismatched reflection shapes (e.g. circle in left eye vs slanted ellipse or dual glint in right eye).
-    """)
 
 # ==================== TAB 5: KNOWLEDGE GRAPH ====================
 with tab_graph:
