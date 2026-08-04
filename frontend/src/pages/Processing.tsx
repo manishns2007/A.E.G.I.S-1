@@ -58,9 +58,10 @@ const Processing = () => {
         }, 1500);
         
       } catch (err: any) {
+        // Process is complete (error state)
         clearInterval(interval);
         clearInterval(stageInterval);
-        setError(err.message || 'Pipeline processing encountered an unrecoverable error');
+        setError(err.response?.data?.detail || err.message || 'Pipeline processing encountered an unrecoverable error');
       }
     };
 

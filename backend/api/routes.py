@@ -103,11 +103,21 @@ async def analyze_evidence(req: AnalyzeRequest):
         
         # Format response to match required schema
         def map_standard(raw: dict) -> StandardResult:
+            findings = raw.get("findings", {})
+            safe_findings = {}
+            for k, v in findings.items():
+                if type(v).__name__ == 'ndarray':
+                    continue
+                # Also skip oversized arrays/lists that frontend doesn't need
+                if k in ['freqs', 'spectrum', 'luminance_signal', 'time_stamps', 'img_bgr', 'shielded_bgr']:
+                    continue
+                safe_findings[k] = v
+
             return StandardResult(
                 status=raw.get("status", "unknown"),
                 processing_time=raw.get("processing_time", 0.0),
                 confidence=raw.get("confidence"),
-                findings=raw.get("findings", {}),
+                findings=safe_findings,
                 error_message=raw.get("error_message")
             )
             
