@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import {
-  Shield, Zap, Eye, GitBranch, FileText, Database,
+  Shield, Zap, Eye, GitBranch, FileText,
   CheckCircle2, XCircle, AlertTriangle, Clock, Target,
   BarChart2
 } from 'lucide-react';
@@ -70,7 +70,7 @@ const Results = () => {
     );
   }
 
-  const { privacy, enf, corneal, gemini, knowledge_graph, legal_report } = data;
+  const { privacy, enf, corneal, gemini, legal_report } = data;
   const isAuthentic = legal_report?.findings?.is_authentic;
 
   return (

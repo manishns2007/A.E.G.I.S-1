@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { CheckCircle2, CircleDashed, Loader2, AlertCircle } from 'lucide-react';
 import { analyzeEvidence } from '../services/api';
 
@@ -15,6 +15,7 @@ const STAGES = [
 const Processing = () => {
   const { caseId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [completedStages, setCompletedStages] = useState<string[]>([]);
   const [currentStage, setCurrentStage] = useState<string>(STAGES[0].id);
   const [progress, setProgress] = useState(0);
@@ -45,8 +46,9 @@ const Processing = () => {
 
     const runAnalysis = async () => {
       try {
-        const geminiApiKey = location.state?.geminiApiKey || '';
-        const res = await analyzeEvidence(caseId, geminiApiKey);
+        const geminiApiKey = (location.state as any)?.geminiApiKey || '';
+        const res = await analyzeEvidence(caseId!);
+        void geminiApiKey; // key is now resolved server-side
         // Process is complete
         clearInterval(interval);
         clearInterval(stageInterval);
