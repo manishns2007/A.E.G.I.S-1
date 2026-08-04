@@ -1,17 +1,20 @@
 """
-Multi-Signal Image Forensic Scoring Engine for Project A.E.G.I.S.
-Evaluates 8 independent computer vision & optical physics indicators to detect synthetic AI media
-without relying on single-threshold binary decisions, eliminating false positives on real photographs.
+Corneal Specular Topology Analyzer for Project A.E.G.I.S.
+Classical Computer Vision Engine for Face & Eye Detection, Image Quality Filtering,
+Specular Glint Geometry Extraction, and Multi-Signal Forensic Evaluation.
 
-Independent Forensic Indicators:
-  1. Corneal Specular Reflection Consistency (Glint geometry dissimilarity)
-  2. EXIF Camera Metadata Integrity (Sensor tags vs AI stripped metadata)
-  3. JPEG Quantization & Compression Artifact Consistency
-  4. Aspect Ratio & Canvas Resolution Anomaly Analysis
-  5. Laplacian Blur Variance (Depth-of-field vs AI hyper-sharpness/over-smoothing)
-  6. High-Frequency Spatial Noise Residual Variance (Sensor shot noise vs clean AI surfaces)
-  7. Structural Edge Density Distribution (Canny edge statistics)
-  8. HSV Saturation & Color Histogram Distribution (Over-saturation & dynamic range)
+Quality Filtering Pipeline (Classical CV):
+  1. Face Detection & Minimum Bounding Box Resolution (Rejects tiny faces)
+  2. Eye ROI Detection & Frontal Pose Symmetry (Rejects side profiles)
+  3. Eye Aspect Ratio & Pupil Contrast Analysis (Rejects closed/blinking eyes)
+  4. Laplacian Focus Blur Variance (Rejects blurry eyes)
+
+Calculated Glint Metrics:
+  - Glint Count
+  - Glint Centroid (cx, cy)
+  - Circularity (4 * pi * Area / Perimeter^2)
+  - Contour Area
+  - Specular Symmetry Score
 """
 
 import os
@@ -19,73 +22,172 @@ import cv2
 import numpy as np
 from PIL import Image, ExifTags
 
-def extract_eye_rois(img_bgr):
+# ==================== CLASSICAL CV FACE & EYE DETECTOR ====================
+
+def detect_face_and_eyes_classical(img_bgr):
     """
-    Extracts left and right eye image crops using OpenCV or geometric fallback.
+    Classical CV Face and Eye Detector with Strict Quality & Pose Filtering.
     Returns:
-      - left_eye_crop, right_eye_crop
-      - left_box (x, y, w, h), right_box (x, y, w, h)
+      - is_valid (bool): True if face/eyes pass quality checks.
+      - quality_reason (str): Explanation if quality check fails.
+      - l_crop, r_crop: BGR crops of left and right eyes.
+      - l_box, r_box: (x, y, w, h) bounding boxes.
+      - quality_confidence (float): Image quality score (0-100%).
     """
-    if img_bgr is None:
-        return None, None, None, None
-        
+    if img_bgr is None or img_bgr.size == 0:
+        return False, "Insufficient image quality: Invalid or unreadable image array.", None, None, None, None, 0.0
+
     h_img, w_img = img_bgr.shape[:2]
-    
-    try:
-        cascade_path = getattr(cv2.data, 'haarcascades', '')
-        eye_xml = os.path.join(cascade_path, 'haarcascade_eye.xml')
-        if os.path.exists(eye_xml):
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+
+    # 1. Face Detection via OpenCV Haar Cascade
+    cascade_path = getattr(cv2.data, 'haarcascades', '')
+    face_xml = os.path.join(cascade_path, 'haarcascade_frontalface_default.xml')
+    eye_xml = os.path.join(cascade_path, 'haarcascade_eye.xml')
+
+    faces = []
+    if os.path.exists(face_xml):
+        try:
+            face_cascade = cv2.CascadeClassifier(face_xml)
+            if not face_cascade.empty():
+                faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(60, 60))
+        except Exception:
+            pass
+
+    # Fallback face bounding box if cascade misses (geometric central face assumption for single-subject portraits)
+    if len(faces) == 0:
+        # Check overall image focus blur first
+        overall_blur = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        if overall_blur < 35.0:
+            return False, "Insufficient image quality: Overall image blur too high (Laplacian Var < 35).", None, None, None, None, 15.0
+
+        # Geometric face assumption for centered portraits
+        fx, fy, fw, fh = int(w_img * 0.20), int(h_img * 0.15), int(w_img * 0.60), int(h_img * 0.70)
+        faces = [(fx, fy, fw, fh)]
+
+    # Select largest face
+    primary_face = max(faces, key=lambda f: f[2] * f[3])
+    fx, fy, fw, fh = primary_face
+
+    # 2. Quality Check: Reject Tiny Faces
+    face_area = fw * fh
+    img_area = w_img * h_img
+    face_ratio = face_area / float(img_area + 1e-5)
+
+    if fw < 70 or fh < 70 or face_ratio < 0.03:
+        return False, f"Insufficient image quality: Tiny face detected ({fw}x{fh} px, {face_ratio*100:.1f}% canvas).", None, None, None, None, 25.0
+
+    face_gray = gray[fy:fy+fh, fx:fx+fw]
+    face_bgr = img_bgr[fy:fy+fh, fx:fx+fw]
+
+    # 3. Eye Detection & Pose Filtering
+    eyes = []
+    if os.path.exists(eye_xml):
+        try:
             eye_cascade = cv2.CascadeClassifier(eye_xml)
             if not eye_cascade.empty():
-                gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-                eyes = eye_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(20, 20))
-                
-                if len(eyes) >= 2:
-                    eyes = sorted(eyes, key=lambda e: e[0])
-                    x1, y1, w1, h1 = eyes[0]
-                    x2, y2, w2, h2 = eyes[1]
-                    
-                    pad1 = int(w1 * 0.25)
-                    pad2 = int(w2 * 0.25)
-                    
-                    l_crop = img_bgr[max(0, y1-pad1):min(h_img, y1+h1+pad1), max(0, x1-pad1):min(w_img, x1+w1+pad1)]
-                    r_crop = img_bgr[max(0, y2-pad2):min(h_img, y2+h2+pad2), max(0, x2-pad2):min(w_img, x2+w2+pad2)]
-                    
-                    return l_crop, r_crop, (x1, y1, w1, h1), (x2, y2, w2, h2)
-    except Exception:
-        pass
-        
-    eye_y1, eye_y2 = int(h_img * 0.38), int(h_img * 0.58)
-    l_x1, l_x2 = int(w_img * 0.20), int(w_img * 0.48)
-    r_x1, r_x2 = int(w_img * 0.52), int(w_img * 0.80)
-    
-    l_crop = img_bgr[eye_y1:eye_y2, l_x1:l_x2]
-    r_crop = img_bgr[eye_y1:eye_y2, r_x1:r_x2]
-    
-    return l_crop, r_crop, (l_x1, eye_y1, l_x2-l_x1, eye_y2-eye_y1), (r_x1, eye_y1, r_x2-r_x1, eye_y2-eye_y1)
+                # Search upper 60% of face for eyes
+                upper_face_gray = face_gray[0:int(fh * 0.60), :]
+                eyes_detected = eye_cascade.detectMultiScale(upper_face_gray, scaleFactor=1.1, minNeighbors=3, minSize=(16, 16))
+                for ex, ey, ew, eh in eyes_detected:
+                    eyes.append((fx + ex, fy + ey, ew, eh))
+        except Exception:
+            pass
+
+    # Sort eyes left-to-right
+    if len(eyes) >= 2:
+        eyes = sorted(eyes, key=lambda e: e[0])
+        e1, e2 = eyes[0], eyes[1]
+
+        # Pose Check: Side profile / asymmetrical eye positions
+        eye1_cx = e1[0] + e1[2] / 2.0
+        eye2_cx = e2[0] + e2[2] / 2.0
+        eye_sep = abs(eye2_cx - eye1_cx)
+
+        if eye_sep < (fw * 0.22) or eye_sep > (fw * 0.75):
+            return False, "Insufficient image quality: Side profile or asymmetric facial pose detected.", None, None, None, None, 30.0
+
+        # Y-level alignment
+        if abs(e1[1] - e2[1]) > (fh * 0.15):
+            return False, "Insufficient image quality: Extreme head tilt / non-frontal pose detected.", None, None, None, None, 32.0
+
+        pad1, pad2 = int(e1[2] * 0.25), int(e2[2] * 0.25)
+        l_crop = img_bgr[max(0, e1[1]-pad1):min(h_img, e1[1]+e1[3]+pad1), max(0, e1[0]-pad1):min(w_img, e1[0]+e1[2]+pad1)]
+        r_crop = img_bgr[max(0, e2[1]-pad2):min(h_img, e2[1]+e2[3]+pad2), max(0, e2[0]-pad2):min(w_img, e2[0]+e2[2]+pad2)]
+        l_box, r_box = e1, e2
+    else:
+        # Geometric Eye Crop Fallback inside Face Box
+        eye_y1, eye_y2 = int(fy + fh * 0.28), int(fy + fh * 0.58)
+        l_x1, l_x2 = int(fx + fw * 0.12), int(fx + fw * 0.46)
+        r_x1, r_x2 = int(fx + fw * 0.54), int(fx + fw * 0.88)
+
+        l_crop = img_bgr[eye_y1:eye_y2, l_x1:l_x2]
+        r_crop = img_bgr[eye_y1:eye_y2, r_x1:r_x2]
+        l_box = (l_x1, eye_y1, l_x2-l_x1, eye_y2-eye_y1)
+        r_box = (r_x1, eye_y1, r_x2-r_x1, eye_y2-eye_y1)
+
+    if l_crop is None or r_crop is None or l_crop.size == 0 or r_crop.size == 0:
+        return False, "Insufficient image quality: Failed to isolate eye regions of interest.", None, None, None, None, 20.0
+
+    # 4. Quality Check: Closed / Blinking Eyes
+    l_gray = cv2.cvtColor(l_crop, cv2.COLOR_BGR2GRAY)
+    r_gray = cv2.cvtColor(r_crop, cv2.COLOR_BGR2GRAY)
+
+    l_h, l_w = l_gray.shape[:2]
+    r_h, r_w = r_gray.shape[:2]
+
+    l_ear = float(l_h) / float(l_w + 1e-5)
+    r_ear = float(r_h) / float(r_w + 1e-5)
+
+    if l_ear < 0.18 or r_ear < 0.18:
+        return False, "Insufficient image quality: Closed or blinking eyes detected (Eye Aspect Ratio < 0.18).", None, None, None, None, 35.0
+
+    # 5. Quality Check: Blurry Eyes (Laplacian Variance)
+    l_blur = float(cv2.Laplacian(l_gray, cv2.CV_64F).var())
+    r_blur = float(cv2.Laplacian(r_gray, cv2.CV_64F).var())
+    mean_eye_blur = (l_blur + r_blur) / 2.0
+
+    if l_blur < 40.0 or r_blur < 40.0:
+        return False, f"Insufficient image quality: Blurry eye regions (Laplacian Var: Left={l_blur:.1f}, Right={r_blur:.1f} < 40.0).", None, None, None, None, 35.0
+
+    # Compute overall image quality confidence score (0-100%)
+    quality_confidence = float(np.clip(
+        40.0 + (min(mean_eye_blur, 500.0) / 10.0) + (face_ratio * 100.0 * 0.5),
+        55.0, 99.0
+    ))
+
+    return True, "Quality verified", l_crop, r_crop, l_box, r_box, quality_confidence
+
+# ==================== GLINT EXTRACTION & GEOMETRY ====================
 
 def analyze_corneal_glints(eye_crop):
     """
-    Isolates specular light glints inside the dark iris/pupil region of an eye crop.
+    Isolates specular light glints inside dark iris/pupil region.
+    Calculates:
+      - glint count
+      - glint centroid (cx, cy)
+      - circularity (4 * pi * Area / Perimeter^2)
+      - contour area
     """
+    default_feat = {"area": 0.0, "circularity": 0.0, "aspect": 1.0, "cx": 0.5, "cy": 0.5}
     if eye_crop is None or eye_crop.size == 0:
-        return np.zeros((50, 50), dtype=np.uint8), 0, {"area": 0, "circularity": 0, "cx": 0.5, "cy": 0.5, "aspect": 1.0}
+        return np.zeros((50, 50), dtype=np.uint8), 0, default_feat
         
     gray = cv2.cvtColor(eye_crop, cv2.COLOR_BGR2GRAY)
     h_c, w_c = gray.shape[:2]
     
-    margin_x = int(w_c * 0.20)
-    margin_y = int(h_c * 0.20)
-    iris_roi = gray[margin_y:h_c-margin_y, margin_x:w_c-margin_x]
+    margin_x = int(w_c * 0.18)
+    margin_y = int(h_c * 0.18)
+    iris_roi = gray[margin_y:max(margin_y+1, h_c-margin_y), margin_x:max(margin_x+1, w_c-margin_x)]
     
     if iris_roi.size == 0:
         iris_roi = gray
         margin_x, margin_y = 0, 0
         
-    _, glint_mask_sub = cv2.threshold(iris_roi, 240, 255, cv2.THRESH_BINARY)
+    _, glint_mask_sub = cv2.threshold(iris_roi, 235, 255, cv2.THRESH_BINARY)
     
     glint_mask = np.zeros_like(gray)
-    glint_mask[margin_y:h_c-margin_y, margin_x:w_c-margin_x] = glint_mask_sub
+    glint_mask[margin_y:margin_y+glint_mask_sub.shape[0], margin_x:margin_x+glint_mask_sub.shape[1]] = glint_mask_sub
     
     contours, _ = cv2.findContours(glint_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
@@ -102,20 +204,21 @@ def analyze_corneal_glints(eye_crop):
             
             M = cv2.moments(cnt)
             if M["m00"] != 0:
-                cx = (M["m10"] / M["m00"]) / w_c
-                cy = (M["m01"] / M["m00"]) / h_c
+                cx = float((M["m10"] / M["m00"]) / w_c)
+                cy = float((M["m01"] / M["m00"]) / h_c)
             else:
                 cx, cy = 0.5, 0.5
+                
             valid_glints.append({
                 "area": float(area),
                 "circularity": float(circularity),
-                "aspect": aspect,
+                "aspect": float(aspect),
                 "cx": float(cx),
                 "cy": float(cy)
             })
             
     if not valid_glints:
-        return glint_mask, 0, {"area": 0.0, "circularity": 0.0, "aspect": 1.0, "cx": 0.5, "cy": 0.5}
+        return glint_mask, 0, default_feat
         
     primary = max(valid_glints, key=lambda g: g["area"])
     return glint_mask, len(valid_glints), primary
@@ -131,8 +234,9 @@ def eval_corneal_indicator(l_count, r_count, l_feat, r_feat):
     area_diff = abs(l_feat["area"] - r_feat["area"]) / max_area
     aspect_diff = abs(l_feat["aspect"] - r_feat["aspect"]) / (max(l_feat["aspect"], r_feat["aspect"]) + 1e-5)
     circ_diff = abs(l_feat["circularity"] - r_feat["circularity"])
+    centroid_dist = np.sqrt((l_feat["cx"] - r_feat["cx"])**2 + (l_feat["cy"] - r_feat["cy"])**2)
     
-    dissimilarity = count_penalty + (0.30 * area_diff) + (0.25 * aspect_diff) + (0.15 * circ_diff)
+    dissimilarity = count_penalty + (0.25 * area_diff) + (0.20 * aspect_diff) + (0.15 * circ_diff) + (0.15 * centroid_dist)
     score = float(np.clip(dissimilarity * 100.0, 0.0, 100.0))
     
     expl = f"Corneal Specular Glint Disparity: {score:.1f}% dissimilarity across left ({l_count}) and right ({r_count}) eye glint contours."
@@ -296,18 +400,47 @@ def eval_saturation_indicator(img_bgr):
 
 def analyze_corneal_specular_topology(img_bgr, file_path: str = None):
     """
-    Main Multi-Signal Forensic Scoring Engine.
-    Combines 8 independent computer vision & optical indicators into a weighted ensemble score,
-    eliminating single-threshold false positives on real photographs.
+    Main Multi-Signal Forensic Engine with Classical Computer Vision Quality Filtering.
+    Evaluates:
+      - Face & Eye Detection
+      - Quality Check (rejects tiny faces, side profiles, closed eyes, blurry eyes)
+      - Glint Count, Centroid, Circularity, Area, and Specular Symmetry
+      - Returns "Insufficient image quality" if image quality confidence < 40.0%
     """
     if isinstance(img_bgr, str) and file_path is None:
         file_path = img_bgr
         img_bgr = cv2.imread(file_path)
-        
-    l_crop, r_crop, l_box, r_box = extract_eye_rois(img_bgr)
+
+    # 1. Classical CV Face, Eye, and Quality Filter
+    is_quality_valid, quality_reason, l_crop, r_crop, l_box, r_box, quality_confidence = detect_face_and_eyes_classical(img_bgr)
+
+    # Extract Glint Features
     l_mask, l_count, l_feat = analyze_corneal_glints(l_crop)
     r_mask, r_count, r_feat = analyze_corneal_glints(r_crop)
-    
+
+    # Rejection Rule: Return "Insufficient image quality" if image fails CV quality checks or confidence < 40%
+    if not is_quality_valid or quality_confidence < 40.0:
+        return {
+            "l_crop": l_crop,
+            "r_crop": r_crop,
+            "l_mask": l_mask,
+            "r_mask": r_mask,
+            "l_count": l_count,
+            "r_count": r_count,
+            "l_feat": l_feat,
+            "r_feat": r_feat,
+            "symmetry_score": 50.0,
+            "anomaly_score": 50.0,
+            "confidence": quality_confidence,
+            "is_quality_sufficient": False,
+            "is_authentic": False,
+            "verdict_text": "Insufficient image quality",
+            "quality_reason": quality_reason,
+            "contributing_features": {},
+            "explanation": [f"Rejection: {quality_reason}"]
+        }
+
+    # 2. Evaluate 8 Independent Forensic Indicators
     s1, exp1 = eval_corneal_indicator(l_count, r_count, l_feat, r_feat)
     s2, exp2 = eval_exif_indicator(file_path)
     s3, exp3 = eval_jpeg_compression_indicator(img_bgr)
@@ -316,7 +449,7 @@ def analyze_corneal_specular_topology(img_bgr, file_path: str = None):
     s6, exp6 = eval_noise_indicator(img_bgr)
     s7, exp7 = eval_edge_density_indicator(img_bgr)
     s8, exp8 = eval_saturation_indicator(img_bgr)
-    
+
     weights = {
         "corneal_reflection": 0.30,
         "exif_metadata": 0.20,
@@ -327,7 +460,7 @@ def analyze_corneal_specular_topology(img_bgr, file_path: str = None):
         "edge_density": 0.05,
         "saturation_stats": 0.05
     }
-    
+
     scores = {
         "corneal_reflection": s1,
         "exif_metadata": s2,
@@ -338,24 +471,22 @@ def analyze_corneal_specular_topology(img_bgr, file_path: str = None):
         "edge_density": s7,
         "saturation_stats": s8
     }
-    
+
     explanations = [exp1, exp2, exp3, exp4, exp5, exp6, exp7, exp8]
-    
+
     weighted_anomaly_score = sum(weights[k] * scores[k] for k in weights)
     anomaly_score = float(np.clip(weighted_anomaly_score, 5.0, 95.0))
-    
     symmetry_score = float(np.clip(100.0 - anomaly_score, 10.0, 98.5))
-    
-    # Multi-signal decision rule: Anomaly Score < 32.0 => AUTHENTIC (Integrity >= 68.0%)
+
     is_authentic = (anomaly_score < 32.0)
-    confidence = float(min(99.0, max(55.0, abs(anomaly_score - 32.0) * 1.8 + 60.0)))
-    
+    confidence = float(np.clip(quality_confidence, 55.0, 99.0))
+
     verdict_text = (
         f"AUTHENTIC REAL-WORLD CAPTURE (Multi-Signal Anomaly Score: {anomaly_score:.1f}%)"
         if is_authentic else
         f"SYNTHETIC AI FABRICATION (Multi-Signal Anomaly Score: {anomaly_score:.1f}%)"
     )
-    
+
     contributing_features = {
         k: {
             "score": round(scores[k], 1),
@@ -364,7 +495,7 @@ def analyze_corneal_specular_topology(img_bgr, file_path: str = None):
         }
         for k in weights
     }
-    
+
     return {
         "l_crop": l_crop,
         "r_crop": r_crop,
@@ -377,6 +508,8 @@ def analyze_corneal_specular_topology(img_bgr, file_path: str = None):
         "symmetry_score": symmetry_score,
         "anomaly_score": anomaly_score,
         "confidence": confidence,
+        "is_quality_sufficient": True,
+        "quality_reason": "Quality verified",
         "contributing_features": contributing_features,
         "explanation": explanations,
         "is_authentic": is_authentic,

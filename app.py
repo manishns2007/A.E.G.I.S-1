@@ -88,7 +88,7 @@ district = st.sidebar.selectbox("Jurisdiction District", ["Kochi Cyber Cell", "T
 st.sidebar.markdown("---")
 gemini_key = st.sidebar.text_input("Google Gemini API Key (Optional)", type="password", help="Optional API key for Gemini Vision VLM background parsing. Local fallback engine active if blank.")
 
-# UNIFIED EVIDENCE RESOLUTION ENGINE (Backend Pipeline Repair)
+# UNIFIED EVIDENCE RESOLUTION ENGINE
 uploaded_file = None
 if "Upload Custom Evidence File" in input_mode:
     uploaded_file = sidebar_uploaded_file
@@ -155,7 +155,7 @@ def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str, fil
             "shielded_vid_path": out_vid
         }
         
-    # 2. ENF Physics Analyzer (frame-by-frame luminance analysis)
+    # 2. ENF Physics Analyzer
     if is_vid:
         results["enf"] = enf_analyzer.analyze_video_enf(file_path, target_freq=50.0)
     else:
@@ -166,7 +166,7 @@ def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str, fil
             "freqs": [], "spectrum": [], "luminance_signal": [], "time_stamps": []
         }
         
-    # 3. Multi-Signal Corneal Specular Topology & Image Forensic Engine
+    # 3. Multi-Signal Corneal Specular Topology Engine with Quality Filter
     img_for_corneal = cv2.imread(file_path) if not is_vid else results["privacy"]["img_bgr"]
     results["corneal"] = corneal_analyzer.analyze_corneal_specular_topology(img_for_corneal, file_path=file_path)
     
@@ -422,9 +422,15 @@ with tab_corneal:
     with c_col3:
         st.metric("Corneal Integrity Score", f"{corneal['symmetry_score']:.1f}%")
     with c_col4:
-        st.metric("Verdict", "AUTHENTIC REAL PHOTO" if corneal['is_authentic'] else "SYNTHETIC AI FABRICATION")
-        
+        if not corneal.get("is_quality_sufficient", True):
+            st.metric("Verdict", "INSUFFICIENT QUALITY")
+        else:
+            st.metric("Verdict", "AUTHENTIC REAL PHOTO" if corneal['is_authentic'] else "SYNTHETIC AI FABRICATION")
+            
     st.markdown("---")
+    
+    if not corneal.get("is_quality_sufficient", True):
+        st.warning(f"⚠️ **Analysis Suspended**: {corneal.get('quality_reason', 'Insufficient image quality')}. Quality confidence is below threshold (< 40.0%).")
     
     # 8-Feature Contributing Breakdown Plot
     st.markdown("#### 📊 8 Independent Forensic Indicator Scores & Weighted Impacts")
