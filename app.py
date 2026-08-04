@@ -160,9 +160,11 @@ def run_forensic_pipeline(file_path: str, is_vid: bool, gemini_api_key: str, fil
         results["enf"] = enf_analyzer.analyze_video_enf(file_path, target_freq=50.0)
     else:
         results["enf"] = {
+            "is_enf_available": False,
             "enf_ratio": 1.0,
             "is_authentic": True,
-            "verdict_text": "ENF Vector Inactive for Static Still Images (Requires Video Luminance Stream)",
+            "verdict_text": "ENF unavailable",
+            "reason": "Static image input (ENF requires video luminance stream)",
             "freqs": [], "spectrum": [], "luminance_signal": [], "time_stamps": []
         }
         
@@ -239,8 +241,12 @@ with tab_overview:
         </div>
         """, unsafe_allow_html=True)
     with col3:
-        enf_val = "50.0 Hz DETECTED" if forensic_data['enf'].get('is_authentic') else "PHYSICS ANOMALY"
-        color_cls = "metric-status-safe" if forensic_data['enf'].get('is_authentic') else "metric-status-threat"
+        if not forensic_data['enf'].get('is_enf_available', True) or forensic_data['enf'].get('verdict_text') == "ENF unavailable":
+            enf_val = "ENF UNAVAILABLE"
+            color_cls = "metric-status-threat"
+        else:
+            enf_val = "50.0 Hz DETECTED" if forensic_data['enf'].get('is_authentic') else "PHYSICS ANOMALY"
+            color_cls = "metric-status-safe" if forensic_data['enf'].get('is_authentic') else "metric-status-threat"
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">ENF Grid Hum Peak</div>
@@ -324,7 +330,7 @@ with tab_enf:
     st.markdown("*Measures frame-by-frame pixel luminance oscillations using SciPy FFT, PSD, and STFT Spectrograms to isolate the 50 Hz Indian Power Grid AC frequency hum.*")
     
     if not is_video:
-        st.warning("⚠️ **Note**: Active evidence is a static image. ENF physics vector requires a frame-by-frame video luminance time-series stream. Select a video from the sidebar to analyze live grid frequencies.")
+        st.warning("⚠️ **ENF unavailable**: Static image input (ENF physics vector requires a video luminance stream).")
     
     st.markdown("#### 🎛️ Real-Time Interactive Physics Parameters")
     p_col1, p_col2 = st.columns(2)
@@ -338,8 +344,17 @@ with tab_enf:
     else:
         enf = forensic_data["enf"]
         
-    if "error" in enf:
-        st.error(f"⚠️ {enf['error']}")
+    if not enf.get("is_enf_available", True) or enf.get("verdict_text") == "ENF unavailable":
+        st.warning(f"⚠️ **ENF unavailable**: {enf.get('reason', 'Video duration too short (< 45 frames), low FPS (< 12 FPS), or static image.')}")
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        with col_m1:
+            st.metric("ENF Peak Power Ratio", "N/A")
+        with col_m2:
+            st.metric("Effective Target Freq", f"{enf.get('effective_target_freq', 50.0):.1f} Hz")
+        with col_m3:
+            st.metric("Sampled FPS Rate", f"{enf.get('fps', 0.0):.1f} FPS")
+        with col_m4:
+            st.metric("Physics Verdict", "ENF UNAVAILABLE")
     else:
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         with col_m1:
@@ -353,18 +368,19 @@ with tab_enf:
             
         st.markdown("---")
         
+        # Diagnostic Plot 1: Luminance Waveform I(t) & Detrended Signal
         if enf.get("time_stamps") and enf.get("luminance_signal"):
-            st.markdown("#### 📈 1. Frame-by-Frame Pixel Luminance Waveform $I(t)$")
+            st.markdown("#### 📈 1. Frame-by-Frame Pixel Luminance Waveform $I(t)$ & Detrended AC Signal")
             fig_wave = go.Figure()
             fig_wave.add_trace(go.Scatter(
                 x=enf["time_stamps"], y=enf["luminance_signal"],
-                mode='lines', name='Raw Mean Pixel Luminance',
+                mode='lines', name='Raw Mean Pixel Luminance I(t)',
                 line=dict(color='#00d2ff', width=2)
             ))
             if enf.get("detrended_signal"):
                 fig_wave.add_trace(go.Scatter(
                     x=enf["time_stamps"], y=enf["detrended_signal"],
-                    mode='lines', name='Detrended AC Oscillations',
+                    mode='lines', name='SciPy Detrended AC Oscillations',
                     line=dict(color='#ffb703', width=1.5, dash='dot')
                 ))
             fig_wave.update_layout(
@@ -374,6 +390,7 @@ with tab_enf:
             )
             st.plotly_chart(fig_wave, use_container_width=True)
             
+        # Diagnostic Plot 2: SciPy FFT Spectrum & Search Band
         if enf.get("freqs") and len(enf["freqs"]) > 0:
             st.markdown("#### 📉 2. SciPy Fast Fourier Transform (FFT) Magnitude Spectrum")
             fig_fft = px.line(
@@ -391,6 +408,7 @@ with tab_enf:
             fig_fft.update_layout(paper_bgcolor="#0a0e17", plot_bgcolor="#0f172a", font=dict(color="#e2e8f0"))
             st.plotly_chart(fig_fft, use_container_width=True)
             
+        # Diagnostic Plot 3: SciPy STFT 2D Spectrogram Heatmap
         if enf.get("stft_matrix") and len(enf["stft_matrix"]) > 0:
             st.markdown("#### 🌡️ 3. SciPy Short-Time Fourier Transform (STFT) 2D Spectrogram Heatmap")
             fig_spec = go.Figure(data=go.Heatmap(
