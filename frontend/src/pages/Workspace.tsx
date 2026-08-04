@@ -5,8 +5,9 @@ import {
   UploadCloud, Play, AlertCircle, CheckCircle, Clock,
   Film, ImageIcon, RefreshCw, Cpu
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { uploadEvidence, getLockerItems, getSystemHealth, LockerItem, AgentHealth } from '../services/api';
+import { motion } from 'framer-motion';
+import { uploadEvidence, getLockerItems, getSystemHealth } from '../services/api';
+import type { LockerItem, AgentHealth } from '../services/api';
 
 const AGENTS = [
   { id: 'intake',   label: 'Evidence Intake Agent',      icon: Database,  mission: 'Register and validate evidence. Generate SHA-256 custody chain.' },
