@@ -45,7 +45,8 @@ const Processing = () => {
 
     const runAnalysis = async () => {
       try {
-        const res = await analyzeEvidence(caseId);
+        const geminiApiKey = location.state?.geminiApiKey || '';
+        const res = await analyzeEvidence(caseId, geminiApiKey);
         // Process is complete
         clearInterval(interval);
         clearInterval(stageInterval);

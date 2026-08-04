@@ -9,6 +9,7 @@ const Dashboard = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState<string>('');
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -41,10 +42,9 @@ const Dashboard = () => {
       setIsUploading(true);
       setError(null);
       const res = await uploadEvidence(file);
-      navigate(`/processing/${res.case_id}`);
+      navigate(`/processing/${res.case_id}`, { state: { geminiApiKey: apiKey } });
     } catch (err: any) {
       setError(err.message || 'File upload failed');
-    } finally {
       setIsUploading(false);
     }
   };
@@ -107,8 +107,26 @@ const Dashboard = () => {
         )}
       </motion.div>
 
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+        className="mt-8 max-w-md mx-auto"
+      >
+        <label className="block text-sm font-medium text-secondary mb-2 text-center uppercase tracking-wider">
+          Gemini Vision Integration (Optional)
+        </label>
+        <input 
+          type="password" 
+          placeholder="Enter Gemini API Key to enable Environmental Intelligence" 
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          className="w-full bg-surface border border-border rounded-lg px-4 py-3 text-textMain focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-center text-sm placeholder:text-textMuted/50"
+        />
+      </motion.div>
+
       {error && (
-        <div className="mt-6 bg-danger/10 border border-danger/20 rounded p-4 flex items-start space-x-3 text-danger">
+        <div className="mt-6 max-w-md mx-auto bg-danger/10 border border-danger/20 rounded p-4 flex items-start space-x-3 text-danger">
           <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <p>{error}</p>
         </div>
