@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, Link } from 'react-router-dom';
-import { Shield, Server, Activity, Database, FileText } from 'lucide-react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Shield, Server, Activity, Database } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Processing from './pages/Processing';
 import Results from './pages/Results';
