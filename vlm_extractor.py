@@ -1,167 +1,198 @@
 """
 Visuo-Acoustic Knowledge Graphing Extractor for Project A.E.G.I.S.
-Parses redacted background environments into structured JSON forensic entities (bedsheets, wall cracks,
-sockets, furniture, ceiling fans) using Google Gemini Vision API with local vision fallback.
+
+Parses redacted background environments into structured forensic entities using
+the Google Gemini Vision API.
+
+Design contract
+---------------
+- If Gemini (or a future VLM) is available and returns valid JSON: entities
+  from the real response are forwarded directly to the knowledge graph.
+- If the API key is missing, the API is unreachable, or the response cannot be
+  parsed: the function returns the canonical OFFLINE response below.
+  It NEVER fabricates entities, invents objects, or returns placeholder data.
+
+Canonical offline response
+--------------------------
+{
+    "status": "offline",
+    "scene_type": null,
+    "environmental_objects": [],
+    "spatial_layout": null,
+    "lighting_type": null,
+    "forensic_signature_hash": null,
+    "error": "<reason string>"
+}
+
+The dashboard must check for status == "offline" and display
+"Semantic extraction unavailable." accordingly.
 """
 
 import os
 import json
 import warnings
-import cv2
-import numpy as np
 from PIL import Image
+import cv2
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-def parse_background_environment(image_path_or_bgr, api_key: str = None):
+
+# ---------------------------------------------------------------------------
+# Canonical offline/unavailable response
+# ---------------------------------------------------------------------------
+
+def _offline(reason: str) -> dict:
+    """Returns the canonical offline sentinel. No entities are invented."""
+    return {
+        "status": "offline",
+        "scene_type": None,
+        "environmental_objects": [],
+        "spatial_layout": None,
+        "lighting_type": None,
+        "forensic_signature_hash": None,
+        "error": reason
+    }
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def parse_background_environment(image_path_or_bgr, api_key: str = None) -> dict:
     """
-    Parses the background environment of an image into live computed JSON forensic entities.
-    Returns 'No evidence available' if image input is missing or unreadable.
+    Attempt to extract forensic environmental entities from the supplied image
+    using the Gemini Vision API.
+
+    Parameters
+    ----------
+    image_path_or_bgr : str | numpy.ndarray | None
+        Either an absolute file path (str) or a BGR numpy array produced by
+        OpenCV, or None if no image is available.
+    api_key : str | None
+        Optional Gemini API key. If None the function also checks the
+        GEMINI_API_KEY and GOOGLE_API_KEY environment variables.
+
+    Returns
+    -------
+    dict
+        On success: the parsed JSON dict returned by Gemini containing at
+        minimum the keys scene_type, environmental_objects, spatial_layout,
+        lighting_type, forensic_signature_hash.
+        On failure: the canonical offline dict (see module docstring).
     """
+    # ── 1. Validate / load input image ───────────────────────────────────
     if image_path_or_bgr is None:
-        return {
-            "scene_type": "No evidence available",
-            "environmental_objects": [],
-            "spatial_layout": "No evidence available",
-            "lighting_type": "No evidence available",
-            "forensic_signature_hash": "ENV-AEGIS-NONE",
-            "error": "No evidence available"
-        }
+        return _offline("No image supplied to VLM extractor.")
 
     if isinstance(image_path_or_bgr, str):
         if not os.path.exists(image_path_or_bgr):
-            return {
-                "scene_type": "No evidence available",
-                "environmental_objects": [],
-                "spatial_layout": "No evidence available",
-                "lighting_type": "No evidence available",
-                "forensic_signature_hash": "ENV-AEGIS-NONE",
-                "error": "No evidence available"
-            }
+            return _offline(f"Image path does not exist: {image_path_or_bgr}")
         img_bgr = cv2.imread(image_path_or_bgr)
+        if img_bgr is None:
+            return _offline(f"cv2.imread failed for: {image_path_or_bgr}")
     else:
-        img_bgr = image_path_or_bgr.copy()
-        
+        img_bgr = image_path_or_bgr
+
     if img_bgr is None or img_bgr.size == 0:
-        return {
-            "scene_type": "No evidence available",
-            "environmental_objects": [],
-            "spatial_layout": "No evidence available",
-            "lighting_type": "No evidence available",
-            "forensic_signature_hash": "ENV-AEGIS-NONE",
-            "error": "No evidence available"
-        }
-        
-    h, w = img_bgr.shape[:2]
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    pil_img = Image.fromarray(img_rgb)
-    
-    api_key_to_use = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    
-    if api_key_to_use:
+        return _offline("Image array is empty or unreadable.")
+
+    # ── 2. Convert to PIL for the Gemini SDK ─────────────────────────────
+    try:
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(img_rgb)
+    except Exception as e:
+        return _offline(f"Image colour conversion failed: {e}")
+
+    # ── 3. Resolve API key ────────────────────────────────────────────────
+    api_key_to_use = (
+        api_key
+        or os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+    )
+
+    if not api_key_to_use:
+        return _offline(
+            "No Gemini API key provided. Set GEMINI_API_KEY or supply the key "
+            "in the sidebar to enable semantic entity extraction."
+        )
+
+    # ── 4. Gemini Vision call ─────────────────────────────────────────────
+    prompt = (
+        "You are a forensic environment analyst. Examine the background of this "
+        "image (ignore any persons). Extract every identifiable object, surface, "
+        "fixture, or texture visible in the scene background. "
+        "Return ONLY valid JSON with this exact schema:\n"
+        "{\n"
+        "  \"scene_type\": \"<string>\",\n"
+        "  \"environmental_objects\": [\n"
+        "    {\"entity\": \"<name>\", \"attributes\": [\"<attr1>\", \"<attr2>\"]}\n"
+        "  ],\n"
+        "  \"spatial_layout\": \"<string>\",\n"
+        "  \"lighting_type\": \"<string>\",\n"
+        "  \"forensic_signature_hash\": \"<string>\"\n"
+        "}\n"
+        "Do not include any commentary, markdown, or code fences outside the JSON."
+    )
+
+    raw_text = None
+    last_error = "Unknown Gemini error."
+
+    # Try the newer google-genai SDK first, fall back to google-generativeai
+    try:
+        from google import genai
+        client = genai.Client(api_key=api_key_to_use)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt, pil_img]
+        )
+        raw_text = response.text.strip()
+    except Exception as e_new:
+        last_error = str(e_new)
         try:
-            try:
-                from google import genai
-                client = genai.Client(api_key=api_key_to_use)
-                prompt = "Analyze background environment. Output JSON schema with keys scene_type, environmental_objects (list of objects with entity and attributes), spatial_layout, lighting_type, forensic_signature_hash."
-                response = client.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=[prompt, pil_img]
-                )
-                text = response.text.strip()
-            except Exception:
-                import google.generativeai as genai_old
-                genai_old.configure(api_key=api_key_to_use)
-                model = genai_old.GenerativeModel('gemini-1.5-flash')
-                prompt = "Analyze background environment. Output JSON schema with keys scene_type, environmental_objects (list of objects with entity and attributes), spatial_layout, lighting_type, forensic_signature_hash."
-                response = model.generate_content([prompt, pil_img])
-                text = response.text.strip()
-                
-            if text.startswith("```json"):
-                text = text[7:]
-            if text.startswith("```"):
-                text = text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-                
-            return json.loads(text.strip())
-        except Exception:
-            pass
-            
-    # Live Computer Vision Feature Extraction Engine
-    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 50, 150)
-    edge_density = float(np.mean(edges) / 255.0)
-    mean_color = np.mean(img_bgr, axis=(0, 1))
-    std_gray = float(np.std(gray))
-    
-    entities = []
-    
-    # 1. Surface Texture Analysis
-    if edge_density > 0.08:
-        entities.append({
-            "entity": f"Patterned Surface / Fabric ({edge_density*100:.1f}% edge density)",
-            "attributes": ["High Contour Micro-Texture", f"Mean RGB({int(mean_color[2])},{int(mean_color[1])},{int(mean_color[0])})"]
-        })
-    else:
-        entities.append({
-            "entity": f"Smooth Uniform Backdrop ({edge_density*100:.1f}% edge density)",
-            "attributes": ["Low Frequency Surface", f"Dominant Tone RGB({int(mean_color[2])},{int(mean_color[1])},{int(mean_color[0])})"]
-        })
-        
-    # 2. Local Contour Bounding Box Analysis
-    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    fixture_found = False
-    for cnt in contours:
-        area = cv2.contourArea(cnt)
-        if 200 <= area <= 15000:
-            x_b, y_b, w_b, h_b = cv2.boundingRect(cnt)
-            aspect = float(w_b) / float(h_b + 1e-5)
-            if 0.5 <= aspect <= 2.2:
-                entities.append({
-                    "entity": f"Wall-Mounted Fixture ROI ({w_b}x{h_b} px)",
-                    "attributes": [f"Rectangular Wall Feature at ({x_b},{y_b})", f"Aspect Ratio {aspect:.2f}"]
-                })
-                fixture_found = True
-                break
-                
-    if not fixture_found:
-        entities.append({
-            "entity": "Standard Polycarbonate Wall Socket ROI",
-            "attributes": ["Wall Surface Feature", "Neutral Polycarbonate Plate"]
-        })
-        
-    # 3. High-Luminance Top Region Analysis
-    top_region = gray[:int(h*0.30), :]
-    top_mean = float(np.mean(top_region))
-    top_std = float(np.std(top_region))
-    
-    if top_mean > 130.0 or top_std > 35.0:
-        entities.append({
-            "entity": f"Overhead Lighting Fixture (Mean Lum: {top_mean:.1f})",
-            "attributes": ["Ceiling High-Luminance Zone", f"Luminance Variance {top_std:.1f}"]
-        })
-    else:
-        entities.append({
-            "entity": f"Ceiling Fixture / Overhead Mount",
-            "attributes": ["Ceiling Zone Feature", "Standard Indoor Overhead Placement"]
-        })
-        
-    # 4. Wall Crack / Texture Structural Anomaly
-    if std_gray > 40.0:
-        entities.append({
-            "entity": f"Wall Structural Texture Anomaly (Std: {std_gray:.1f})",
-            "attributes": ["High Spatial Disparity Crack / Texture", "Lower Wall Section"]
-        })
-        
-    sig_hash = abs(hash(bytes(img_bgr.data[:min(2000, img_bgr.size)]))) % 1000000
-    
-    return {
-        "scene_type": f"Indoor Scene ({w}x{h} px)",
-        "environmental_objects": entities,
-        "spatial_layout": f"Framing Resolution {w}x{h}, Color Mean RGB({int(mean_color[2])},{int(mean_color[1])},{int(mean_color[0])})",
-        "lighting_type": f"50 Hz AC Grid Fluorescent (Top Lum: {top_mean:.1f})",
-        "forensic_signature_hash": f"ENV-AEGIS-{sig_hash:06d}"
-    }
+            import google.generativeai as genai_old
+            genai_old.configure(api_key=api_key_to_use)
+            model = genai_old.GenerativeModel("gemini-1.5-flash")
+            response = model.generate_content([prompt, pil_img])
+            raw_text = response.text.strip()
+        except Exception as e_old:
+            last_error = str(e_old)
+
+    if raw_text is None:
+        return _offline(f"Gemini API call failed: {last_error}")
+
+    # ── 5. Strip optional markdown fences ────────────────────────────────
+    if raw_text.startswith("```json"):
+        raw_text = raw_text[7:]
+    elif raw_text.startswith("```"):
+        raw_text = raw_text[3:]
+    if raw_text.endswith("```"):
+        raw_text = raw_text[:-3]
+    raw_text = raw_text.strip()
+
+    # ── 6. Parse JSON ─────────────────────────────────────────────────────
+    try:
+        result = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        return _offline(
+            f"Gemini returned non-JSON response (parse error: {e}). "
+            f"Raw prefix: {raw_text[:120]!r}"
+        )
+
+    # ── 7. Sanity-check required keys ─────────────────────────────────────
+    if not isinstance(result, dict):
+        return _offline("Gemini JSON root is not an object.")
+
+    # Guarantee environmental_objects is always a list
+    if "environmental_objects" not in result or not isinstance(
+        result["environmental_objects"], list
+    ):
+        result["environmental_objects"] = []
+
+    # Propagate online status so the dashboard can distinguish
+    result.setdefault("status", "online")
+    result.setdefault("scene_type", None)
+    result.setdefault("spatial_layout", None)
+    result.setdefault("lighting_type", None)
+    result.setdefault("forensic_signature_hash", None)
+
+    return result

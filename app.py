@@ -550,12 +550,58 @@ with tab_graph:
         """, unsafe_allow_html=True)
 
     vlm = forensic_data["vlm"]
-    st.markdown(f"**Extracted Scene Environment**: `{vlm.get('scene_type', 'Indoor Scene')}` | Lighting: `{vlm.get('lighting_type', 'N/A')}`")
+    vlm_online = vlm.get("status", "online") != "offline"
+
+    # ── VLM / Semantic Extraction Status Indicator ────────────────
+    if vlm_online:
+        st.markdown("""
+        <div style="display:inline-flex; align-items:center; gap:10px;
+                    background:rgba(0,210,255,0.08); border:1px solid #00d2ff;
+                    border-radius:8px; padding:10px 18px; margin-bottom:12px;">
+            <span style="font-size:1.2rem;">🔍</span>
+            <div>
+                <div style="color:#94a3b8; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em;">Semantic Extraction (VLM)</div>
+                <div style="color:#00d2ff; font-weight:700; font-size:1rem;">✓ Online — Gemini</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown(
+            f"**Extracted Scene Environment**: `{vlm.get('scene_type', 'N/A')}` "
+            f"| Lighting: `{vlm.get('lighting_type', 'N/A')}`"
+        )
+    else:
+        st.markdown("""
+        <div style="display:inline-flex; align-items:center; gap:10px;
+                    background:rgba(255,171,0,0.07); border:1px solid #ffb703;
+                    border-radius:8px; padding:10px 18px; margin-bottom:12px;">
+            <span style="font-size:1.2rem;">🔍</span>
+            <div>
+                <div style="color:#94a3b8; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em;">Semantic Extraction (VLM)</div>
+                <div style="color:#ffb703; font-weight:700; font-size:1rem;">Offline — API key required</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("#### 📦 Extracted Background Entities & Attributes")
     objs = vlm.get("environmental_objects", [])
-    if len(objs) == 0:
-        st.warning("⚠️ **No evidence available**: Zero environmental entities detected in active evidence background.")
+
+    if not vlm_online:
+        # VLM offline — show clean unavailability notice, no fabricated cards
+        st.markdown("""
+        <div style="background:rgba(255,171,0,0.06); border:1px solid #ffb703;
+                    border-radius:10px; padding:22px; text-align:center; margin-top:8px;">
+            <div style="font-size:1.5rem; margin-bottom:8px;">🔍</div>
+            <div style="color:#ffb703; font-weight:600; font-size:1rem;">
+                Semantic extraction unavailable.
+            </div>
+            <div style="color:#64748b; font-size:0.85rem; margin-top:6px;">
+                Provide a Google Gemini API key in the sidebar to enable real-time
+                background entity extraction. No placeholder objects are shown.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    elif len(objs) == 0:
+        st.warning("⚠️ **No entities detected**: Gemini returned an empty object list for this evidence file.")
     else:
         obj_cols = st.columns(3)
         for idx, obj in enumerate(objs):
