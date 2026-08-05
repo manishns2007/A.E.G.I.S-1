@@ -14,6 +14,7 @@ import {
   TrendingUp, Search, Scale, BarChart3, ChevronRight, Clock,
   AlertCircle, ArrowRight, Layers, Target,
 } from 'lucide-react';
+import Graph from '../components/Graph';
 import {
   streamInvestigation, startInvestigation, getLockerCases,
   type MultiAgentInvestigationResponse,
@@ -505,9 +506,17 @@ const InvestigationWorkspace = () => {
           {result?.privacy?.output?.shielded_image_url && (
             <div className="mt-3 overflow-hidden rounded-lg border border-primary/20 bg-black">
               <img
-                src={`http://localhost:8000${result.privacy.output.shielded_image_url}`}
+                src={
+                  result.privacy.output.shielded_image_url.startsWith('http')
+                    ? result.privacy.output.shielded_image_url
+                    : `http://localhost:8000${result.privacy.output.shielded_image_url.startsWith('/') ? '' : '/'}${result.privacy.output.shielded_image_url}`
+                }
                 alt="Privacy Shielded Preview"
                 className="w-full h-auto object-contain opacity-90 hover:opacity-100 transition-opacity max-h-48"
+                onError={(e) => {
+                  // Fallback to sample image if file is not found
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
               />
               <div className="bg-primary/10 p-1.5 text-center border-t border-primary/20">
                 <span className="text-[10px] font-mono text-primary uppercase tracking-widest flex items-center justify-center gap-1.5">
@@ -668,23 +677,37 @@ const InvestigationWorkspace = () => {
           <span className="ml-auto text-xs font-mono text-success">{currentGraph.nodes} nodes · {currentGraph.edges} edges</span>
         </div>
         {currentGraph.entities.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            <AnimatePresence>
-              {currentGraph.entities.map((ent, i) => (
-                <motion.span
-                  key={ent}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.08 }}
-                  className="px-2 py-0.5 rounded-full border border-green-400/30 bg-green-400/5 text-green-400 text-[10px] font-mono"
-                >
-                  {ent}
-                </motion.span>
-              ))}
-            </AnimatePresence>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-1.5">
+              <AnimatePresence>
+                {currentGraph.entities.map((ent, i) => (
+                  <motion.span
+                    key={ent}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.08 }}
+                    className="px-2 py-0.5 rounded-full border border-green-400/30 bg-green-400/5 text-green-400 text-[10px] font-mono"
+                  >
+                    {ent}
+                  </motion.span>
+                ))}
+              </AnimatePresence>
+            </div>
+            {state?.caseId && (
+              <div className="mt-2 rounded-lg overflow-hidden border border-border">
+                <Graph caseId={state.caseId} />
+              </div>
+            )}
           </div>
         ) : (
-          <p className="text-xs text-textMuted italic">Awaiting Vision Intelligence entity extraction…</p>
+          <div className="space-y-3">
+            <p className="text-xs text-textMuted italic">Compiling topological knowledge graph nodes...</p>
+            {state?.caseId && (
+              <div className="mt-2 rounded-lg overflow-hidden border border-border">
+                <Graph caseId={state.caseId} />
+              </div>
+            )}
+          </div>
         )}
         {graphGrowth.length > 1 && (
           <div className="mt-3 flex items-end space-x-1 h-10">

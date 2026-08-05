@@ -12,22 +12,55 @@ const Graph = ({ caseId }: { caseId: string }) => {
     const fetchGraph = async () => {
       try {
         const data = await getGraphData(caseId);
+        if (!data || !data.nodes) return;
         
-        // Basic layout algorithm
-        const formattedNodes = data.nodes.map((node: any, idx: number) => {
-          // Put the central case node in the middle
+        const otherNodes = data.nodes.filter((n: any) => n.type !== 'case');
+        const formattedNodes = data.nodes.map((node: any) => {
           if (node.type === 'case') {
             return {
               id: node.id,
               data: { label: node.label },
               position: { x: 400, y: 300 },
-              style: { background: '#00d2ff', color: '#000', border: 'none', fontWeight: 'bold' }
+              style: {
+                background: '#00d2ff',
+                color: '#05070e',
+                border: '2px solid #38bdf8',
+                fontWeight: 'bold',
+                padding: '12px 18px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                boxShadow: '0 0 20px rgba(0, 210, 255, 0.4)'
+              }
             };
           }
           
-          // Distribute other nodes in a circle
-          const radius = 250;
-          const angle = (idx / (data.nodes.length - 1)) * 2 * Math.PI;
+          const idx = otherNodes.findIndex((n: any) => n.id === node.id);
+          const total = otherNodes.length || 1;
+          const radius = 220;
+          const angle = (idx / total) * 2 * Math.PI;
+
+          let bg = '#1e293b';
+          let border = '#3b82f6';
+          let color = '#f8fafc';
+
+          if (node.type === 'vector_privacy') {
+            bg = 'rgba(0, 255, 157, 0.15)';
+            border = '#00ff9d';
+            color = '#00ff9d';
+          } else if (node.type === 'vector_physics') {
+            bg = 'rgba(255, 183, 3, 0.15)';
+            border = '#ffb703';
+            color = '#ffb703';
+          } else if (node.type === 'vector_optical') {
+            bg = 'rgba(192, 132, 252, 0.15)';
+            border = '#c084fc';
+            color = '#c084fc';
+          } else if (node.type === 'custody_seal') {
+            bg = 'rgba(96, 165, 250, 0.15)';
+            border = '#60a5fa';
+            color = '#60a5fa';
+          }
+
           return {
             id: node.id,
             data: { label: node.label },
@@ -35,7 +68,16 @@ const Graph = ({ caseId }: { caseId: string }) => {
               x: 400 + radius * Math.cos(angle), 
               y: 300 + radius * Math.sin(angle) 
             },
-            style: { background: '#162032', color: '#e2e8f0', borderColor: '#ffb703' }
+            style: { 
+              background: bg, 
+              color: color, 
+              border: `1px solid ${border}`,
+              padding: '8px 14px',
+              borderRadius: '6px',
+              fontSize: '11px',
+              fontFamily: 'monospace',
+              fontWeight: '600'
+            }
           };
         });
         
@@ -44,7 +86,9 @@ const Graph = ({ caseId }: { caseId: string }) => {
           source: edge.source,
           target: edge.target,
           animated: true,
-          style: { stroke: '#94a3b8' }
+          label: edge.label || '',
+          style: { stroke: '#00d2ff', strokeWidth: 1.5 },
+          labelStyle: { fill: '#94a3b8', fontSize: 9 }
         }));
         
         setNodes(formattedNodes);
@@ -62,16 +106,17 @@ const Graph = ({ caseId }: { caseId: string }) => {
   if (loading) return <div className="h-full flex items-center justify-center text-secondary">Loading Intelligence Graph...</div>;
 
   return (
-    <div style={{ width: '100%', height: '500px' }} className="border border-border rounded-lg bg-background">
+    <div style={{ width: '100%', height: '500px' }} className="border border-border rounded-lg bg-background overflow-hidden relative">
       <ReactFlow 
         nodes={nodes} 
         edges={edges} 
         onNodesChange={onNodesChange} 
         onEdgesChange={onEdgesChange}
         fitView
+        fitViewOptions={{ padding: 0.3 }}
       >
         <Controls />
-        <Background color="#2a364f" gap={16} />
+        <Background color="#1e293b" gap={16} />
       </ReactFlow>
     </div>
   );

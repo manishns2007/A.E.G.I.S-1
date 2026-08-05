@@ -115,6 +115,39 @@ def generate_corneal_image(is_authentic: bool, output_path: str):
     cv2.imwrite(output_path, img)
     return output_path
 
+import zipfile
+
+def generate_sample_zip_package(overwrite: bool = True):
+    """Generates a complete ZIP evidence package containing video, images, and documents."""
+    ensure_sample_dir()
+    zip_path = os.path.join(SAMPLE_DIR, "sample_case_package.zip")
+    
+    auth_video = os.path.join(SAMPLE_DIR, "authentic_video_50hz.mp4")
+    auth_image = os.path.join(SAMPLE_DIR, "authentic_portrait.jpg")
+    synth_image = os.path.join(SAMPLE_DIR, "synthetic_ai_portrait.jpg")
+    
+    if not os.path.exists(auth_video):
+        generate_enf_video(True, auth_video)
+    if not os.path.exists(auth_image):
+        generate_corneal_image(True, auth_image)
+    if not os.path.exists(synth_image):
+        generate_corneal_image(False, synth_image)
+        
+    doc_path = os.path.join(SAMPLE_DIR, "investigation_docket.txt")
+    with open(doc_path, "w", encoding="utf-8") as f:
+        f.write("KERALA POLICE CYBERDOME EVIDENCE CASE PACKAGE\n")
+        f.write("Case Ref: KP-2026-ACPIA-0914\n")
+        f.write("Evidence files: authentic_video_50hz.mp4, authentic_portrait.jpg, synthetic_ai_portrait.jpg\n")
+
+    if overwrite or not os.path.exists(zip_path):
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(auth_video, arcname="evidence_video_50hz.mp4")
+            zf.write(auth_image, arcname="evidence_portrait_camera.jpg")
+            zf.write(synth_image, arcname="evidence_portrait_ai.jpg")
+            zf.write(doc_path, arcname="case_summary.txt")
+
+    return zip_path
+
 def generate_all_samples(overwrite: bool = True):
     """Generates all standard sample assets for live judging."""
     ensure_sample_dir()
@@ -122,6 +155,7 @@ def generate_all_samples(overwrite: bool = True):
     synth_video = os.path.join(SAMPLE_DIR, "synthetic_ai_video.mp4")
     auth_image = os.path.join(SAMPLE_DIR, "authentic_portrait.jpg")
     synth_image = os.path.join(SAMPLE_DIR, "synthetic_ai_portrait.jpg")
+    sample_zip = os.path.join(SAMPLE_DIR, "sample_case_package.zip")
     
     if overwrite or not os.path.exists(auth_video):
         generate_enf_video(True, auth_video)
@@ -131,12 +165,15 @@ def generate_all_samples(overwrite: bool = True):
         generate_corneal_image(True, auth_image)
     if overwrite or not os.path.exists(synth_image):
         generate_corneal_image(False, synth_image)
+    if overwrite or not os.path.exists(sample_zip):
+        generate_sample_zip_package(overwrite)
         
     return {
         "auth_video": auth_video,
         "synth_video": synth_video,
         "auth_image": auth_image,
-        "synth_image": synth_image
+        "synth_image": synth_image,
+        "sample_zip": sample_zip
     }
 
 if __name__ == "__main__":
