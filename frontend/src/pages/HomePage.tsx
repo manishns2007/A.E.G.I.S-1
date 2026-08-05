@@ -2,109 +2,55 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Shield, Zap, Eye, GitBranch, FileText, Database,
-  Cpu, Play, ArrowRight, Activity, Server, Lock,
-  FileCheck, Sparkles, CheckCircle2, Radio, Layers
+  Cpu, ArrowRight, Activity, Server, Lock, Layers, CheckCircle2, Sparkles, Radio
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getSystemHealth } from '../services/api';
 
-const AGENT_SWARM = [
+const FEATURES = [
   {
-    id: 'orchestrator',
-    name: 'Investigation Orchestrator',
-    type: 'Meta-Planner',
-    icon: Cpu,
-    color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/5',
-    badge: 'LangGraph Engine',
-    description: 'Autonomously plans step-by-step investigation goals, evaluates evidence uncertainty, and dispatches specialist agents.'
-  },
-  {
-    id: 'intake',
-    name: 'Evidence Intake Agent',
-    type: 'Custody Chain',
-    icon: Database,
-    color: 'border-blue-500/40 text-blue-400 bg-blue-500/5',
-    badge: 'SHA-256 Custody',
-    description: 'Registers evidence packages, calculates SHA-256 cryptographic hashes, extracts EXIF metadata, and inventories files.'
-  },
-  {
-    id: 'privacy',
-    name: 'Privacy Shield Agent',
-    type: 'Mental Health Guard',
     icon: Shield,
-    color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/5',
-    badge: 'YuNet DNN Blur',
-    description: 'Instantly redacts human faces and bodies with YuNet DNN & MediaPipe while preserving 100% of background environmental evidence.'
+    title: 'Automated Privacy Shield',
+    description: 'Protects investigator mental health by instantly blurring human face and body regions using YuNet DNN & MediaPipe while preserving environmental background.'
   },
   {
-    id: 'enf',
-    name: 'ENF Physics Agent',
-    type: 'AC Grid Verification',
     icon: Zap,
-    color: 'border-amber-500/40 text-amber-400 bg-amber-500/5',
-    badge: '50 Hz SciPy FFT',
-    description: 'Extracts frame-by-frame luminance oscillations to verify the 50 Hz Indian power grid hum physics, proving authentic capture.'
+    title: 'ENF Physics Engine',
+    description: 'Extracts 50 Hz power grid hum luminance oscillations via SciPy STFT & FFT to verify authentic real-world capture vs AI deepfakes.'
   },
   {
-    id: 'corneal',
-    name: 'Corneal Topology Agent',
-    type: 'Optical Forensics',
     icon: Eye,
-    color: 'border-purple-500/40 text-purple-400 bg-purple-500/5',
-    badge: '8 Optical Vectors',
-    description: 'Analyzes specular corneal reflections, PRNU camera sensor noise, frequency DCT spectra, and compression artifacts.'
+    title: 'Multi-Signal Optical Forensics',
+    description: 'Ensemble analysis of specular corneal reflections, PRNU camera sensor noise, frequency DCT spectra, and compression artifacts.'
   },
   {
-    id: 'vision',
-    name: 'Vision Intelligence Agent',
-    type: 'VLM Scene Parser',
-    icon: Eye,
-    color: 'border-pink-500/40 text-pink-400 bg-pink-500/5',
-    badge: 'Gemini VLM',
-    description: 'Scans background environments to extract furniture, lighting signatures, wall textures, and spatial contextual objects.'
-  },
-  {
-    id: 'graph',
-    name: 'Knowledge Graph Agent',
-    type: 'Visuo-Acoustic Graph',
     icon: GitBranch,
-    color: 'border-indigo-500/40 text-indigo-400 bg-indigo-500/5',
-    badge: 'NetworkX Graph',
-    description: 'Maps environmental entities into spatial knowledge graphs and performs cross-case correlation matching.'
+    title: 'Visuo-Acoustic Knowledge Graph',
+    description: 'Extracts environmental fixtures, furniture, and lighting signatures into spatial graphs using NetworkX and cross-case intelligence correlations.'
   },
   {
-    id: 'risk',
-    name: 'Risk Assessment Agent',
-    type: 'Threat Evaluator',
-    icon: Activity,
-    color: 'border-rose-500/40 text-rose-400 bg-rose-500/5',
-    badge: 'Bayesian Fusion',
-    description: 'Computes ensemble forensic anomaly scores and determines authentic vs synthetic AI deepfake probability.'
+    icon: Cpu,
+    title: 'Multi-Agent Swarm Planning',
+    description: '10 specialist agents collaborate dynamically under a LangGraph meta-orchestrator to formulate hypotheses and fill evidence gaps.'
   },
   {
-    id: 'gap',
-    name: 'Evidence Gap Agent',
-    type: 'Uncertainty Resolver',
-    icon: Layers,
-    color: 'border-yellow-500/40 text-yellow-400 bg-yellow-500/5',
-    badge: 'Gap Analysis',
-    description: 'Identifies missing forensic vectors and suggests targeted follow-up actions to reach court admissibility.'
-  },
-  {
-    id: 'legal',
-    name: 'Legal Reasoning Agent',
-    type: 'Statutory Reporter',
     icon: FileText,
-    color: 'border-teal-500/40 text-teal-400 bg-teal-500/5',
-    badge: 'BSA 2023 Sec 63',
+    title: 'BSA 2023 Section 63 Certificate',
     description: 'Generates plain-English court reports fully compliant with Section 63 of Bharatiya Sakshya Adhiniyam (BSA), 2023.'
   }
+];
+
+const ARCHITECTURE_STEPS = [
+  { step: '01', title: 'Evidence Ingestion & Hashing', desc: 'SHA-256 custody chain verification and multi-format evidence extraction.' },
+  { step: '02', title: 'Mental Health Privacy Redaction', desc: 'YuNet DNN instant face/body blurring preserving scene background.' },
+  { step: '03', title: 'Multi-Signal Forensic Extraction', desc: '50 Hz AC grid physics, corneal topology, and PRNU sensor noise scoring.' },
+  { step: '04', title: 'VLM Spatial Entity Graphing', desc: 'Environmental object extraction and NetworkX correlation mapping.' },
+  { step: '05', title: 'Statutory Court Certificate', desc: 'BSA 2023 Section 63 dynamic legal docket generation.' }
 ];
 
 const HomePage = () => {
   const navigate = useNavigate();
   const [health, setHealth] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -114,228 +60,191 @@ const HomePage = () => {
         if (isMounted) setHealth(data);
       } catch {
         if (isMounted) setHealth(null);
-      } finally {
-        if (isMounted) setLoading(false);
       }
     };
     fetchHealth();
-    const interval = setInterval(fetchHealth, 10000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
+    return () => { isMounted = false; };
   }, []);
 
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
-    <div className="min-h-screen bg-background text-textMain relative overflow-hidden">
-      {/* Dynamic Agentic Background Ambient Glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-gradient-to-b from-primary/10 via-accent/5 to-transparent blur-3xl pointer-events-none rounded-full" />
-      <div className="absolute top-1/3 -left-48 w-96 h-96 bg-primary/5 blur-3xl pointer-events-none rounded-full" />
-      <div className="absolute top-1/2 -right-48 w-96 h-96 bg-accent/5 blur-3xl pointer-events-none rounded-full" />
+    <div className="min-h-screen bg-[#060913] text-[#f8fafc] font-sans relative overflow-x-hidden">
+      
+      {/* ── Background Dot Matrix & Radial Glow ── */}
+      <div className="absolute inset-0 bg-dot-matrix opacity-40 pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-radial-glow pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto px-6 py-12 relative z-10 space-y-16">
-
-        {/* ═══ HERO SECTION ═══ */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center space-y-6 max-w-4xl mx-auto"
-        >
-          {/* Live Agentic Status Pill */}
-          <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-mono tracking-widest uppercase">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-            </span>
-            <span>AUTONOMOUS AGENTIC SWARM ACTIVE</span>
-            <span className="text-textMuted">|</span>
-            <span className="text-success font-semibold">BSA 2023 SEC 63 COMPLIANT</span>
+      {/* ── Top Navbar ── */}
+      <nav className="relative z-20 border-b border-[#1e293b]/80 bg-[#060913]/90 backdrop-blur-md px-8 py-4 flex items-center justify-between">
+        {/* Brand Logo Badge */}
+        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/')}>
+          <div className="w-8 h-8 rounded-md bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-white shadow-md shadow-blue-500/20">
+            A
           </div>
-
-          {/* Hero Title */}
-          <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight text-textMain leading-tight">
-            PROJECT <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-cyan-400 to-accent">A.E.G.I.S.</span>
-          </h1>
-
-          <p className="text-lg md:text-xl text-secondary max-w-3xl mx-auto font-light leading-relaxed">
-            <strong className="text-textMain font-semibold">Agentic Environmental Graphing &amp; Intelligence System</strong>
-            <br />
-            Shifting digital forensics away from victim pixel-matching toward analyzing invisible environmental physics, 50 Hz power grid hums, corneal specular topology, and spatial knowledge graphs.
-          </p>
-
-          {/* Quick Action CTA Buttons */}
-          <div className="flex flex-wrap justify-center gap-4 pt-4">
-            <motion.button
-              whileHover={{ scale: 1.03, boxShadow: '0 0 30px rgba(0,210,255,0.3)' }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate('/workspace')}
-              className="flex items-center space-x-3 px-8 py-4 rounded-xl bg-primary text-background font-bold tracking-wider uppercase text-sm cursor-pointer shadow-lg shadow-primary/20 transition-all"
-            >
-              <Play className="w-5 h-5 fill-current" />
-              <span>Launch Investigation Workspace</span>
-              <ArrowRight className="w-4 h-4" />
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate('/workspace')}
-              className="flex items-center space-x-3 px-8 py-4 rounded-xl bg-surface border border-border hover:border-primary/50 text-textMain font-bold tracking-wider uppercase text-sm cursor-pointer transition-all"
-            >
-              <Database className="w-5 h-5 text-accent" />
-              <span>Browse Evidence Locker</span>
-            </motion.button>
-          </div>
-        </motion.div>
-
-        {/* ═══ LIVE SYSTEM TELEMETRY STRIP ═══ */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.15 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-surface/60 backdrop-blur-md border border-border/80 rounded-2xl p-6 shadow-xl"
-        >
-          <div className="space-y-1">
-            <div className="flex items-center space-x-2 text-xs text-textMuted uppercase tracking-wider">
-              <Cpu className="w-4 h-4 text-primary" />
-              <span>Swarm Orchestrator</span>
-            </div>
-            <p className="text-xl font-bold font-mono text-success flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-              LANGGRAPH ACTIVE
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center space-x-2 text-xs text-textMuted uppercase tracking-wider">
-              <Server className="w-4 h-4 text-accent" />
-              <span>Vision LLM Engine</span>
-            </div>
-            <p className="text-xl font-bold font-mono text-primary uppercase">
-              {loading ? 'Checking...' : health?.providers?.gemini === 'online' ? 'Gemini 2.5 Flash' : 'Local Fallback'}
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center space-x-2 text-xs text-textMuted uppercase tracking-wider">
-              <Shield className="w-4 h-4 text-emerald-400" />
-              <span>Privacy Redaction</span>
-            </div>
-            <p className="text-xl font-bold font-mono text-emerald-400">
-              YUNET DNN ACTIVE
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center space-x-2 text-xs text-textMuted uppercase tracking-wider">
-              <FileCheck className="w-4 h-4 text-purple-400" />
-              <span>Legal Admissibility</span>
-            </div>
-            <p className="text-xl font-bold font-mono text-purple-400">
-              BSA 2023 SEC 63
-            </p>
-          </div>
-        </motion.div>
-
-        {/* ═══ AGENTIC AI SWARM ARCHITECTURE ═══ */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-textMain tracking-wider uppercase flex items-center gap-3">
-                <Sparkles className="w-6 h-6 text-accent" />
-                Specialist Agentic Swarm
-              </h2>
-              <p className="text-secondary text-sm mt-1">
-                10 autonomous agents collaborate dynamically to analyze physics, optical topology, and environmental context.
-              </p>
-            </div>
-
-            <div className="hidden md:flex items-center space-x-2 bg-surface border border-border px-3 py-1.5 rounded-lg text-xs font-mono text-textMuted">
-              <Radio className="w-3.5 h-3.5 text-success animate-pulse" />
-              <span>AUTONOMOUS WORKFLOW</span>
-            </div>
-          </div>
-
-          {/* Agent Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {AGENT_SWARM.map((agent, idx) => {
-              const Icon = agent.icon;
-              return (
-                <motion.div
-                  key={agent.id}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.05 * idx }}
-                  whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                  className={`border rounded-2xl p-5 bg-surface/80 hover:bg-surfaceHover transition-all flex flex-col justify-between group shadow-lg ${agent.color}`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2.5 rounded-xl bg-surface border border-border group-hover:border-primary/50 transition-colors">
-                          <Icon className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-mono uppercase tracking-widest text-textMuted">Agent {idx + 1}</span>
-                          <h3 className="text-sm font-bold text-textMain leading-tight">{agent.name}</h3>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-current opacity-80">
-                        {agent.badge}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-secondary leading-relaxed">
-                      {agent.description}
-                    </p>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-[11px] font-mono text-textMuted">
-                    <span className="flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3 h-3 text-success" />
-                      <span>{agent.type}</span>
-                    </span>
-                    <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity font-bold">
-                      ACTIVE &rarr;
-                    </span>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+          <span className="text-lg font-bold tracking-widest text-white uppercase">AEGIS</span>
         </div>
 
-        {/* ═══ BSA 2023 STATUTORY FORENSIC FOOTER ═══ */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="bg-surface border border-border/80 rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-6"
-        >
-          <div className="space-y-2 max-w-2xl">
-            <div className="flex items-center space-x-2 text-accent text-xs font-mono font-bold uppercase tracking-widest">
-              <Lock className="w-4 h-4" />
-              <span>Section 63 BSA 2023 Certificate Generation</span>
-            </div>
-            <h3 className="text-lg font-bold text-textMain">Ready to run an autonomous investigation?</h3>
-            <p className="text-xs text-secondary leading-relaxed">
-              Upload any evidence file or select an existing case from the Evidence Locker. A.E.G.I.S. executes all 10 specialist agents in parallel, generating court-admissible forensic legal certificates in seconds.
-            </p>
-          </div>
-
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('/workspace')}
-            className="flex items-center space-x-3 px-6 py-3.5 rounded-xl bg-accent text-background font-bold tracking-wider uppercase text-xs cursor-pointer shadow-lg shadow-accent/20 flex-shrink-0"
+        {/* Right Navigation Links & Enter Platform Button */}
+        <div className="flex items-center space-x-8 text-sm">
+          <button
+            onClick={() => scrollToSection('features')}
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
-            <span>Enter Workspace</span>
-            <ArrowRight className="w-4 h-4" />
-          </motion.button>
+            Features
+          </button>
+          <button
+            onClick={() => scrollToSection('architecture')}
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+          >
+            Architecture
+          </button>
+          <button
+            onClick={() => navigate('/workspace')}
+            className="px-4 py-2 rounded-lg border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 font-semibold transition-all cursor-pointer"
+          >
+            Enter Platform
+          </button>
+        </div>
+      </nav>
+
+      {/* ── HERO SECTION ── */}
+      <section className="relative z-10 max-w-5xl mx-auto px-6 pt-24 pb-20 text-center flex flex-col items-center justify-center">
+        
+        {/* Top Pill Badge */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400 text-xs font-mono tracking-widest uppercase mb-8 shadow-sm"
+        >
+          <span>DIGITAL FORENSICS REDEFINED</span>
         </motion.div>
 
-      </div>
+        {/* Main Heading */}
+        <motion.h1
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1] text-white mb-6"
+        >
+          AI-Assisted Digital <br />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-blue-400 to-indigo-400">
+            Investigation Platform
+          </span>
+        </motion.h1>
+
+        {/* Subtitle */}
+        <motion.p
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto font-normal leading-relaxed mb-10"
+        >
+          Transform digital evidence into actionable intelligence through automated analysis, entity extraction, relationship mapping, and timeline reconstruction.
+        </motion.p>
+
+        {/* Action Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="flex flex-wrap justify-center items-center gap-4"
+        >
+          <button
+            onClick={() => navigate('/workspace')}
+            className="flex items-center space-x-2.5 px-7 py-3.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-600/30 cursor-pointer"
+          >
+            <span>Launch Investigation</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => scrollToSection('features')}
+            className="px-7 py-3.5 rounded-lg border border-[#1e293b] bg-[#0e1424] hover:bg-[#172036] text-slate-200 font-semibold text-sm transition-all cursor-pointer"
+          >
+            Explore Features
+          </button>
+        </motion.div>
+      </section>
+
+      {/* ── FEATURES SECTION ── */}
+      <section id="features" className="relative z-10 max-w-6xl mx-auto px-6 py-20 border-t border-[#1e293b]/60">
+        <div className="text-center max-w-2xl mx-auto mb-16 space-y-3">
+          <div className="text-xs font-mono uppercase tracking-widest text-blue-400">Platform Capabilities</div>
+          <h2 className="text-3xl font-extrabold text-white">Autonomous Specialist Intelligence</h2>
+          <p className="text-slate-400 text-sm">
+            AEGIS coordinates 10 autonomous forensic agents to analyze physics, optical reflections, and spatial knowledge graphs.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {FEATURES.map((feat, idx) => {
+            const Icon = feat.icon;
+            return (
+              <motion.div
+                key={feat.title}
+                initial={{ opacity: 0, y: 15 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: idx * 0.05 }}
+                className="p-6 rounded-xl border border-[#1e293b] bg-[#0e1424]/80 hover:bg-[#172036]/90 transition-all space-y-4 group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:border-blue-500/50 transition-colors">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-bold text-white">{feat.title}</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">{feat.description}</p>
+              </motion.div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── ARCHITECTURE SECTION ── */}
+      <section id="architecture" className="relative z-10 max-w-6xl mx-auto px-6 py-20 border-t border-[#1e293b]/60">
+        <div className="text-center max-w-2xl mx-auto mb-16 space-y-3">
+          <div className="text-xs font-mono uppercase tracking-widest text-blue-400">Workflow &amp; Admissibility</div>
+          <h2 className="text-3xl font-extrabold text-white">End-to-End Forensic Architecture</h2>
+          <p className="text-slate-400 text-sm">
+            From raw evidence ingestion to BSA 2023 Section 63 statutory court certificate generation.
+          </p>
+        </div>
+
+        <div className="space-y-4 max-w-4xl mx-auto">
+          {ARCHITECTURE_STEPS.map((st, idx) => (
+            <motion.div
+              key={st.step}
+              initial={{ opacity: 0, x: -15 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: idx * 0.08 }}
+              className="flex items-start space-x-6 p-5 rounded-xl border border-[#1e293b] bg-[#0e1424]/80 hover:bg-[#172036]/90 transition-all"
+            >
+              <span className="text-xl font-mono font-extrabold text-blue-400 flex-shrink-0">{st.step}</span>
+              <div>
+                <h4 className="text-base font-bold text-white">{st.title}</h4>
+                <p className="text-xs text-slate-400 mt-1">{st.desc}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer className="relative z-10 border-t border-[#1e293b]/80 bg-[#060913] px-8 py-8 text-center text-xs text-slate-500 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center space-x-2">
+          <span className="font-bold text-slate-300">AEGIS Platform</span>
+          <span>·</span>
+          <span>Agentic Environmental Graphing &amp; Intelligence System</span>
+        </div>
+        <div>
+          <span>Fully compliant with Section 63 of Bharatiya Sakshya Adhiniyam (BSA), 2023</span>
+        </div>
+      </footer>
     </div>
   );
 };

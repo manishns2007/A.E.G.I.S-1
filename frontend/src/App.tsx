@@ -33,16 +33,18 @@ const TopNav = () => {
   const isGeminiOnline = health?.providers?.gemini === 'online';
   const isGroqOnline = health?.providers?.groq === 'online';
 
+  if (location.pathname === '/') return null;
+
   return (
     <header className="bg-surface/90 backdrop-blur-md border-b border-border px-6 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50">
       {/* Brand & Title */}
       <Link to="/" className="flex items-center space-x-3 group">
-        <div className="p-2 rounded-xl bg-primary/10 border border-primary/30 group-hover:border-primary transition-colors">
-          <Shield className="text-primary w-6 h-6" />
+        <div className="w-8 h-8 rounded-md bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-white shadow-md shadow-blue-500/20">
+          A
         </div>
         <div>
           <h1 className="text-lg font-extrabold tracking-wider text-textMain m-0 leading-tight flex items-center gap-2">
-            PROJECT A.E.G.I.S.
+            AEGIS
             <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-primary/20 text-primary uppercase">Agentic AI</span>
           </h1>
           <p className="text-[11px] text-textMuted uppercase tracking-widest mt-0.5">Agentic Environmental Graphing &amp; Intelligence System</p>
