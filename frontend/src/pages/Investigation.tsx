@@ -355,6 +355,14 @@ const InvestigationWorkspace = () => {
         if (full.missing_vectors)       setMissingVectors(full.missing_vectors);
         if (full.confidence_evolution)  setConfidenceHistory(full.confidence_evolution);
         if (full.knowledge_graph_growth) setGraphGrowth(full.knowledge_graph_growth);
+        if (full.graph?.output) {
+          const gOut = full.graph.output;
+          setCurrentGraph({
+            nodes: gOut.nodes || 6,
+            edges: gOut.edges || 5,
+            entities: gOut.entities_mapped || []
+          });
+        }
         if (full.planner_steps)         setPlannerSteps(full.planner_steps);
         if (full.investigation_brief)   setBrief(full.investigation_brief);
         if (full.evidence_gap?.output)  setGapOutput(full.evidence_gap.output);

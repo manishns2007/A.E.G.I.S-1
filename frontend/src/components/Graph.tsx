@@ -3,16 +3,22 @@ import { ReactFlow, useNodesState, useEdgesState, Controls, Background } from '@
 import '@xyflow/react/dist/style.css';
 import { getGraphData } from '../services/api';
 
-const Graph = ({ caseId }: { caseId: string }) => {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+interface GraphProps {
+  caseId: string;
+}
+
+const Graph = ({ caseId }: GraphProps) => {
+  const [nodes, setNodes, onNodesChange] = useNodesState<any>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchGraph = async () => {
       try {
+        setLoading(true);
         const data = await getGraphData(caseId);
-        if (!data || !data.nodes) return;
+        if (!isMounted || !data || !data.nodes || data.nodes.length === 0) return;
         
         const otherNodes = data.nodes.filter((n: any) => n.type !== 'case');
         const formattedNodes = data.nodes.map((node: any) => {
@@ -90,20 +96,24 @@ const Graph = ({ caseId }: { caseId: string }) => {
           style: { stroke: '#00d2ff', strokeWidth: 1.5 },
           labelStyle: { fill: '#94a3b8', fontSize: 9 }
         }));
-        
+
         setNodes(formattedNodes);
         setEdges(formattedEdges);
       } catch (err) {
         console.error("Failed to load graph data", err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     
     fetchGraph();
-  }, [caseId, setNodes, setEdges]);
 
-  if (loading) return <div className="h-full flex items-center justify-center text-secondary">Loading Intelligence Graph...</div>;
+    return () => {
+      isMounted = false;
+    };
+  }, [caseId]);
+
+  if (loading) return <div className="h-full flex items-center justify-center text-secondary font-mono text-xs">Loading Intelligence Graph...</div>;
 
   return (
     <div style={{ width: '100%', height: '500px' }} className="border border-border rounded-lg bg-background overflow-hidden relative">
