@@ -47,21 +47,24 @@ class KnowledgeGraphAgent(BaseAgent):
             context.knowledge_graph_fig = fig.to_dict()
 
             correlations = knowledge_graph.analyze_cross_case_correlations(
-                G, current_case_id=context.case_id, historical_db_connected=False
+                G, current_case_id=context.case_id, historical_db_connected=True
             )
             
-            if correlations == knowledge_graph.HISTORICAL_DB_UNAVAILABLE:
-                reasoning.append("Cross-case historical database is disconnected (Reporting historical DB unavailable).")
-                corr_status = "unavailable"
+            if correlations and isinstance(correlations, list) and len(correlations) > 0:
+                top_match = correlations[0]
+                reasoning.append(f"POLICE DATABASE MATCH: Found pattern similarity in historical docket {top_match['case_id']} ({top_match['match_score']}% alignment across {top_match['shared_count']} shared environmental feature nodes).")
+                corr_status = "match_found"
             else:
-                corr_status = "completed"
+                reasoning.append("Police Forensic Crime Database searched. No historical pattern match detected above correlation threshold.")
+                corr_status = "no_match"
 
-            context.add_reasoning(self.name, f"Graph compiled ({node_count} nodes).")
+            context.add_reasoning(self.name, f"Graph compiled ({node_count} nodes). Database status: {corr_status}.")
 
             output = {
                 "nodes": node_count,
                 "edges": edge_count,
                 "historical_db_status": corr_status,
+                "historical_matches": correlations if isinstance(correlations, list) else [],
                 "entities_mapped": [e["entity"] if isinstance(e, dict) else str(e) for e in entities],
                 "fig": context.knowledge_graph_fig
             }

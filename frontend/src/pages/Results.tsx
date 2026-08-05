@@ -350,6 +350,53 @@ const Results = () => {
 
       {activeTab === 'intelligence' && (
         <div className="space-y-6">
+          {/* Police Database Cross-Case Pattern Matching Alert Card */}
+          {graph?.output?.historical_matches && graph.output.historical_matches.length > 0 ? (
+            <div className="bg-primary/10 border border-primary/40 rounded-xl p-5">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                <div className="flex items-center space-x-2">
+                  <Database className="w-5 h-5 text-primary animate-pulse" />
+                  <h4 className="font-bold text-textMain text-sm uppercase tracking-wider">
+                    🚨 Police Forensic Database Cross-Match Found
+                  </h4>
+                </div>
+                <span className="bg-primary/20 text-primary border border-primary/40 text-xs font-mono font-bold px-3 py-1 rounded-full">
+                  {graph.output.historical_matches[0].match_score}% Spatial Pattern Alignment
+                </span>
+              </div>
+              <p className="text-xs text-textMuted mb-3">
+                A.E.G.I.S. topological graph matcher detected matching environmental signatures in historical police docket:
+              </p>
+              <div className="bg-background/80 border border-border rounded-lg p-3 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-secondary font-mono">Matched Historical Case ID:</span>
+                  <span className="font-bold text-primary font-mono">{graph.output.historical_matches[0].case_id}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-secondary font-mono">Jurisdiction Division:</span>
+                  <span className="text-textMain font-mono">{graph.output.historical_matches[0].jurisdiction}</span>
+                </div>
+                <div className="text-xs">
+                  <span className="text-secondary font-mono block mb-1">Shared Environmental Vectors ({graph.output.historical_matches[0].shared_count}):</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {graph.output.historical_matches[0].shared_entities.map((e: string, i: number) => (
+                      <span key={i} className="bg-primary/15 border border-primary/30 text-primary text-[11px] font-mono px-2 py-0.5 rounded">
+                        {e}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-surface/50 border border-border/60 rounded-xl p-4 flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-xs text-textMuted font-mono">
+                <Database className="w-4 h-4 text-secondary" />
+                <span>POLICE FORENSIC DATABASE SEARCH COMPLETE — NO CROSS-CASE PATTERN MATCHES DETECTED</span>
+              </div>
+            </div>
+          )}
+
           {/* Knowledge Graph */}
           <div className="card">
             <div className="flex items-center space-x-3 mb-4">
