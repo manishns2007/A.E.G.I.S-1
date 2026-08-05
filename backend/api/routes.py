@@ -531,6 +531,16 @@ async def get_graph(case_id: str):
     return JSONResponse(content={'nodes': nodes, 'edges': edges})
 
 
+@router.get('/')
+async def api_root():
+    return JSONResponse(content={
+        'status': 'online',
+        'system': 'Project A.E.G.I.S. API',
+        'version': '2.0.0',
+        'health': '/api/health'
+    })
+
+
 @router.get('/health')
 async def system_health():
     gemini_status = 'online' if GEMINI_API_KEY else 'offline'
