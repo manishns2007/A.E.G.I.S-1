@@ -259,7 +259,7 @@ def eval_exif_indicator(image_path_or_bytes):
             else:
                 return 30.0, f"EXIF Metadata: Partial EXIF tags present ({len(found)} camera attributes)."
         else:
-            return 65.0, "EXIF Metadata: Stripped camera EXIF header (typical of web re-encoding or AI synthesis)."
+            return 35.0, "EXIF Metadata: Stripped camera EXIF header (typical of web re-encoding or social media uploads)."
     except Exception:
         return 50.0, "EXIF Metadata: Header parsing error or non-JPEG format."
 
@@ -290,8 +290,8 @@ def eval_jpeg_compression_indicator(img_bgr):
         score = 10.0
         expl = f"JPEG Compression: Standard hardware camera quantization grid verified (discontinuity: {block_discontinuity:.1f})."
     else:
-        score = 60.0
-        expl = f"JPEG Compression: Non-standard quantization grid (discontinuity: {block_discontinuity:.1f})."
+        score = 35.0
+        expl = f"JPEG Compression: Re-encoded web quantization grid (discontinuity: {block_discontinuity:.1f})."
         
     return score, expl
 

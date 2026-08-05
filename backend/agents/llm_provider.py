@@ -191,7 +191,7 @@ class GroqProvider(LLMProvider):
 
     def __init__(self, api_key: str):
         import groq
-        self.client = groq.Groq(api_key=api_key)
+        self.client = groq.Groq(api_key=api_key, timeout=3.0)
 
     def plan_next_agent(self, state: Dict[str, Any]) -> Tuple[str, Dict[str, Any], Dict[str, Any]]:
         state_summary = _build_state_summary(state)
@@ -208,7 +208,8 @@ class GroqProvider(LLMProvider):
                     ],
                     response_format={"type": "json_object"},
                     temperature=0.05,
-                    max_tokens=512
+                    max_tokens=512,
+                    timeout=3.0
                 )
                 text = res.choices[0].message.content.strip()
                 data = json.loads(text)
