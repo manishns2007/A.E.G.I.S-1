@@ -95,7 +95,7 @@ const Results = () => {
             : <XCircle className="w-12 h-12 text-danger flex-shrink-0" />
           }
           <div>
-            <p className="text-xs text-textMuted uppercase tracking-widest mb-1">A.E.G.I.S. Forensic Verdict</p>
+            <p className="text-xs text-textMuted uppercase tracking-widest mb-1">AEGIS Forensic Verdict</p>
             <h2 className={`text-2xl font-bold ${isAuthentic ? 'text-success' : 'text-danger'}`}>
               {legal_report?.output?.verdict_badge ?? 'VERDICT UNAVAILABLE'}
             </h2>

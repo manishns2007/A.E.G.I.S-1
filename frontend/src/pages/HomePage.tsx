@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Shield, Zap, Eye, GitBranch, FileText, Database,
-  Cpu, ArrowRight, Activity, Server, Lock, Layers, CheckCircle2, Sparkles, Radio
+  Shield, Zap, Eye, GitBranch, FileText,
+  Cpu, ArrowRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { getSystemHealth } from '../services/api';
 
 const FEATURES = [
   {
@@ -50,21 +48,6 @@ const ARCHITECTURE_STEPS = [
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const [health, setHealth] = useState<any>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchHealth = async () => {
-      try {
-        const data = await getSystemHealth();
-        if (isMounted) setHealth(data);
-      } catch {
-        if (isMounted) setHealth(null);
-      }
-    };
-    fetchHealth();
-    return () => { isMounted = false; };
-  }, []);
 
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);

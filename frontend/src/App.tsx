@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Shield, Server, Activity, Database, Cpu, Home, FolderKanban, Play } from 'lucide-react';
+import { Server, Activity, Database, Cpu, Home, FolderKanban, Play } from 'lucide-react';
 import HomePage from './pages/HomePage';
 import Workspace from './pages/Workspace';
 import Investigation from './pages/Investigation';
