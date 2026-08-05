@@ -39,11 +39,12 @@ def generate_enf_video(is_authentic: bool, output_path: str, duration_sec: float
         if is_authentic:
             # 50 Hz AC power grid flicker modulation
             flicker = 8.0 * np.sin(2 * np.pi * 50.0 * t) + 3.0 * np.sin(2 * np.pi * 100.0 * t)
+            frame_float = frame.astype(np.float32) + flicker
         else:
-            # AI Generated video: Constant lighting without 50Hz grid physics
-            flicker = 0.0
+            # AI Generated video: Constant lighting without 50Hz grid physics (with subtle frame noise)
+            noise = np.random.normal(0, 1.2, frame.shape).astype(np.float32)
+            frame_float = frame.astype(np.float32) + noise
             
-        frame_float = frame.astype(np.float32) + flicker
         frame_clipped = np.clip(frame_float, 0, 255).astype(np.uint8)
         out.write(frame_clipped)
         
