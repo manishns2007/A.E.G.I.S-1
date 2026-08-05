@@ -133,14 +133,17 @@ const Workspace = () => {
       {/* ── Header ── */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-textMain tracking-wider uppercase">Investigation Workspace</h2>
-          <p className="text-secondary text-sm mt-0.5">Case-Based Multi-Agent Forensic Platform · Kerala Police Cyberdome</p>
+          <h2 className="text-2xl font-bold text-textMain tracking-wider uppercase flex items-center gap-3">
+            <FolderArchive className="w-6 h-6 text-primary" />
+            Investigation Workspace
+          </h2>
+          <p className="text-secondary text-sm mt-0.5">Case-Based Multi-Agent Forensic Dispatch &amp; Evidence Locker</p>
         </div>
-        <div className="flex items-center space-x-2 bg-surface border border-border rounded-lg px-4 py-2">
+        <div className="flex items-center space-x-2 bg-surface/90 border border-primary/30 rounded-xl px-4 py-2 shadow-lg shadow-primary/5">
           <Cpu className="w-4 h-4 text-primary" />
-          <span className="text-xs text-secondary uppercase tracking-wider">A.E.G.I.S. Orchestrator</span>
+          <span className="text-xs text-secondary uppercase tracking-wider font-mono">Swarm Orchestrator:</span>
           <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-          <span className="text-xs text-success font-semibold">Ready</span>
+          <span className="text-xs text-success font-semibold font-mono">LANGGRAPH ACTIVE</span>
         </div>
       </motion.div>
 

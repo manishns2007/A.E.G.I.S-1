@@ -468,8 +468,8 @@ const InvestigationWorkspace = () => {
             { label: 'Case ID',     value: state?.caseId ?? 'Active Session' },
             { label: 'Media Type',   value: state?.isVideo ? 'VIDEO (AV STREAM)' : 'IMAGE (STATIC)' },
             { label: 'SHA-256 Hash', value: result?.intake?.output?.sha256 ? `${result.intake.output.sha256.slice(0,14)}…` : state?.sha256 ? `${state.sha256.slice(0,14)}…` : 'Secured' },
-            { label: 'Resolution',   value: result?.intake?.output?.metadata?.resolution ?? (isStreaming ? 'Scanning...' : 'Extracted') },
-            ...(state?.isVideo ? [{ label: 'Frame Rate', value: result?.intake?.output?.metadata?.fps ? `${result.intake.output.metadata.fps} FPS` : (isStreaming ? 'Sampling FPS...' : '30 FPS') }] : []),
+            { label: 'Resolution',   value: result?.intake?.output?.metadata?.resolution ?? (isRunning ? 'Scanning...' : 'Extracted') },
+            ...(state?.isVideo ? [{ label: 'Frame Rate', value: result?.intake?.output?.metadata?.fps ? `${result.intake.output.metadata.fps} FPS` : (isRunning ? 'Sampling FPS...' : '30 FPS') }] : []),
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0">
               <span className="text-xs text-textMuted font-mono">{label}</span>
