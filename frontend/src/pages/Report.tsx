@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer } from 'lucide-react';
 import axios from 'axios';
-import { getReportUrl } from '../services/api';
+
+const getReportUrl = (caseId: string) => `http://localhost:8000/api/report/${caseId}`;
 
 const Report = () => {
   const { caseId } = useParams();

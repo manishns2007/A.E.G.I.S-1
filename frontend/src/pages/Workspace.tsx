@@ -12,12 +12,16 @@ import type { CaseLockerEntry, CaseRegistrationResponse } from '../services/api'
 
 
 const AGENTS = [
-  { id: 'intake',  label: 'Evidence Intake',     icon: Database,  mission: 'Register, hash, and inventory all case evidence.' },
-  { id: 'privacy', label: 'Privacy Shield',      icon: Shield,    mission: 'Detect and redact human subjects.' },
-  { id: 'enf',     label: 'ENF Physics',         icon: Zap,       mission: 'Verify authenticity via electrical network frequency.' },
-  { id: 'vision',  label: 'Vision Intelligence', icon: Eye,       mission: 'Scene understanding via Gemini Vision AI.' },
-  { id: 'graph',   label: 'Knowledge Graph',     icon: GitBranch, mission: 'Correlate entities into investigation graph.' },
-  { id: 'legal',   label: 'Legal Report',        icon: FileText,  mission: 'Generate BSA 2023 court-admissible report.' },
+  { id: 'intake',   label: 'Evidence Intake Agent',    icon: Database,  mission: 'Register, hash, and inventory all case evidence.' },
+  { id: 'privacy',  label: 'Privacy Shield Agent',     icon: Shield,    mission: 'Detect and redact human subjects from all media.' },
+  { id: 'enf',      label: 'ENF Physics Agent',        icon: Zap,       mission: 'Verify authenticity via electrical network frequency.' },
+  { id: 'corneal',  label: 'Corneal Topology Agent',   icon: Eye,       mission: 'Classical CV corneal specular glint analysis.' },
+  { id: 'vision',   label: 'Vision Intelligence Agent', icon: Eye,      mission: 'Scene understanding via Gemini Vision AI.' },
+  { id: 'graph',    label: 'Knowledge Graph Agent',    icon: GitBranch, mission: 'Correlate entities into investigation graph.' },
+  { id: 'risk',     label: 'Risk Assessment Agent',    icon: Cpu,       mission: 'Evaluate threat level from forensic vectors.' },
+  { id: 'fusion',   label: 'Intelligence Fusion Agent', icon: Cpu,     mission: 'Synthesize all vectors into unified narrative.' },
+  { id: 'gap',      label: 'Evidence Gap Agent',       icon: FileText,  mission: 'Identify missing evidence & confidence gaps.' },
+  { id: 'legal',    label: 'Legal Reasoning Agent',    icon: FileText,  mission: 'Generate BSA 2023 court-admissible certificate.' },
 ];
 
 type WorkspaceTab = 'locker' | 'register';
@@ -101,12 +105,17 @@ const Workspace = () => {
 
   // ── Start Investigation ──────────────────────────────────────────────
   const handleStart = () => {
-    const cid = registeredCase?.case_id || selectedCase?.case_id;
-    const evidenceName = registeredCase?.name || selectedCase?.name;
-    const inventory = registeredCase?.inventory || selectedCase?.inventory;
+    const cid         = registeredCase?.case_id || selectedCase?.case_id;
+    const evidenceName = registeredCase?.name   || selectedCase?.name;
+    const inventory   = registeredCase?.inventory || selectedCase?.inventory;
+    const totalFiles  = registeredCase?.total_files || selectedCase?.total_files;
+    const sha256      = registeredCase?.sha256;
+    const primaryFilename = registeredCase?.primary_filename;
+    // Determine media type from inventory
+    const isVideo = (inventory?.videos ?? 0) > 0;
     if (!cid) return;
     navigate('/investigation', {
-      state: { caseId: cid, evidenceName, inventory, totalFiles: registeredCase?.total_files || selectedCase?.total_files }
+      state: { caseId: cid, evidenceName: primaryFilename || evidenceName, inventory, totalFiles, isVideo, sha256 }
     });
   };
 
@@ -378,7 +387,7 @@ const Workspace = () => {
                 </div>
 
                 <p className="text-xs text-textMuted text-center mb-1">
-                  Dispatching 6 specialist agents · Analysis runs automatically
+                  Dispatching 10 specialist agents · LangGraph planning · SSE real-time streaming
                 </p>
               </div>
             ) : (

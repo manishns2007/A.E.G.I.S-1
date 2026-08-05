@@ -76,7 +76,7 @@ const Results = () => {
     );
   }
 
-  const { privacy, enf, corneal, vision, graph, risk, fusion, legal_report } = data;
+  const { privacy, enf, corneal, vision, risk, fusion, legal_report } = data;
   const isAuthentic = legal_report?.output?.is_authentic;
 
   return (

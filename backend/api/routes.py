@@ -1,6 +1,7 @@
 """
 A.E.G.I.S. FastAPI Routes
 Supports both legacy single-file analysis and the new Case-Based Investigation workflow.
+Includes Server-Sent Events (SSE) streaming endpoint for real-time investigation demo.
 """
 import os
 import uuid
@@ -8,22 +9,25 @@ import hashlib
 import time
 import shutil
 import zipfile
+import json
+import asyncio
+import queue
+import threading
 from datetime import datetime
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, AsyncIterator
 
 from .schemas import (
     UploadResponse, AnalyzeRequest, MultiAgentInvestigationResponse,
     EvidenceInventory, CaseRegistrationResponse, CaseLockerEntry,
-    InvestigationStartRequest
+    InvestigationStartRequest, StreamStartRequest
 )
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-
 import legal_docket
 
 router = APIRouter()
@@ -35,7 +39,6 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # In-memory store
 CASES: dict = {}
 
-# Resolve Gemini API key from environment only — never from the frontend
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
 
 # ── File categorisation ───────────────────────────────────────────────────────
@@ -47,6 +50,7 @@ DOC_EXTS    = {'.pdf', '.docx', '.doc', '.xlsx', '.xls', '.txt', '.csv', '.pptx'
 CHAT_EXTS   = {'.json', '.xml', '.html', '.htm', '.db', '.sqlite'}
 SKIP_DIRS   = {'__MACOSX', '.DS_Store', '__pycache__'}
 
+
 def categorise_file(ext: str) -> str:
     ext = ext.lower()
     if ext in IMAGE_EXTS:  return 'images'
@@ -56,8 +60,8 @@ def categorise_file(ext: str) -> str:
     if ext in CHAT_EXTS:   return 'chats'
     return 'unknown'
 
+
 def scan_directory(base_dir: str) -> dict:
-    """Recursively scan a directory and return categorised file lists."""
     inventory: dict = {'images': [], 'videos': [], 'audio': [], 'documents': [], 'chats': [], 'unknown': []}
     for root, dirs, files in os.walk(base_dir):
         dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
@@ -69,9 +73,8 @@ def scan_directory(base_dir: str) -> dict:
             inventory[cat].append(os.path.join(root, fname))
     return inventory
 
+
 def pick_primary(inventory: dict) -> Optional[str]:
-    """Return the most forensically useful single file from the inventory."""
-    # Prefer video → image → audio → document
     for cat in ('videos', 'images', 'audio', 'documents'):
         if inventory[cat]:
             return inventory[cat][0]
@@ -79,6 +82,7 @@ def pick_primary(inventory: dict) -> Optional[str]:
         if inventory[cat]:
             return inventory[cat][0]
     return None
+
 
 def inventory_to_schema(inv: dict) -> EvidenceInventory:
     return EvidenceInventory(
@@ -90,6 +94,7 @@ def inventory_to_schema(inv: dict) -> EvidenceInventory:
         unknown=len(inv.get('unknown', [])),
     )
 
+
 def get_file_extension(filename: str) -> str:
     if not filename:
         return '.bin'
@@ -100,40 +105,36 @@ def get_file_extension(filename: str) -> str:
 
 from backend.agents import InvestigationContext, InvestigationOrchestratorAgent
 
-def _run_pipeline_and_build_response(case_id: str) -> MultiAgentInvestigationResponse:
+
+def _run_pipeline_and_build_response(case_id: str, event_queue=None) -> MultiAgentInvestigationResponse:
     case_data = CASES[case_id]
 
-    # Initialize Investigation Context Memory
     context = InvestigationContext(
         case_id=case_id,
         file_path=case_data['file_path'],
         is_video=case_data['is_video'],
         original_filename=case_data['original_filename'],
-        file_bytes=case_data['file_bytes']
+        file_bytes=case_data['file_bytes'],
+        event_queue=event_queue,
     )
 
-    # Initialize and Execute Orchestrator Agent
     orchestrator = InvestigationOrchestratorAgent()
     orchestrator_output = orchestrator.execute(context)
 
-    # Save to persistent cases state
-    case_data['results'] = orchestrator_output['output']
-    case_data['docket'] = orchestrator_output['output'].get('legal_report', {}).get('output', {})
+    result_dict = orchestrator_output['output']
+    case_data['results'] = result_dict
+    case_data['docket'] = result_dict.get('legal_report', {}).get('output', {})
 
-    return MultiAgentInvestigationResponse(**orchestrator_output['output'])
+    return MultiAgentInvestigationResponse(**result_dict)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CASE-BASED INVESTIGATION ENDPOINTS (primary workflow)
+# CASE-BASED INVESTIGATION ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post('/case/register', response_model=CaseRegistrationResponse)
 async def register_case(file: UploadFile = File(...)):
-    """
-    Register a new investigation case from:
-    - A ZIP archive (automatically extracted and inventoried)
-    - A single image or video file (wrapped as a single-file case)
-    """
+    """Register a new investigation case from a ZIP archive or single media file."""
     case_id = f'CASE-{datetime.now().strftime("%Y%m%d")}-{uuid.uuid4().hex[:6].upper()}'
     case_dir = os.path.join(UPLOAD_DIR, case_id)
     os.makedirs(case_dir, exist_ok=True)
@@ -145,7 +146,6 @@ async def register_case(file: UploadFile = File(...)):
     registered_at = datetime.now().strftime('%H:%M %d/%m/%Y')
 
     if ext == '.zip':
-        # ── ZIP case package ──────────────────────────────────────────
         zip_path = os.path.join(case_dir, 'package.zip')
         with open(zip_path, 'wb') as f:
             f.write(file_bytes)
@@ -155,10 +155,8 @@ async def register_case(file: UploadFile = File(...)):
             os.remove(zip_path)
         except zipfile.BadZipFile:
             raise HTTPException(status_code=400, detail='Invalid ZIP file')
-
         inventory = scan_directory(case_dir)
     else:
-        # ── Single file case ──────────────────────────────────────────
         dest = os.path.join(case_dir, file.filename or f'evidence{ext}')
         with open(dest, 'wb') as f:
             f.write(file_bytes)
@@ -176,21 +174,21 @@ async def register_case(file: UploadFile = File(...)):
         primary_bytes = f.read()
 
     CASES[case_id] = {
-        'file_path': primary,
-        'is_video': is_video,
+        'file_path':         primary,
+        'is_video':          is_video,
         'original_filename': os.path.basename(primary),
-        'file_bytes': primary_bytes,
-        'sha256': sha256_hash,
-        'metadata': {'filename': case_name, 'size_bytes': len(file_bytes), 'is_video': is_video},
-        'results': None,
-        'docket': None,
-        'registered_at': registered_at,
-        'case_name': case_name,
-        'case_dir': case_dir,
-        'inventory': inventory,
-        'inventory_schema': inv_schema.model_dump(),
-        'total_files': total,
-        'status': 'Ready',
+        'file_bytes':        primary_bytes,
+        'sha256':            sha256_hash,
+        'metadata':          {'filename': case_name, 'size_bytes': len(file_bytes), 'is_video': is_video},
+        'results':           None,
+        'docket':            None,
+        'registered_at':     registered_at,
+        'case_name':         case_name,
+        'case_dir':          case_dir,
+        'inventory':         inventory,
+        'inventory_schema':  inv_schema.model_dump(),
+        'total_files':       total,
+        'status':            'Ready',
     }
 
     return CaseRegistrationResponse(
@@ -207,33 +205,28 @@ async def register_case(file: UploadFile = File(...)):
 
 @router.get('/locker')
 async def get_evidence_locker():
-    """
-    Return all registered investigation cases.
-    Cases registered via /case/register are returned first,
-    followed by auto-generated single-file cases from the samples/ directory.
-    """
+    """Return all registered investigation cases plus auto-generated sample entries."""
     entries: list[dict] = []
 
-    # ── 1. Registered cases ───────────────────────────────────────────
     for case_id, data in CASES.items():
         inv = data.get('inventory_schema') or {}
         total = data.get('total_files', 1)
         if not total and data.get('inventory_schema'):
             total = sum(inv.values())
+        status = 'Complete' if data.get('docket') else ('Processing' if data.get('results') else 'Ready')
         entries.append({
-            'case_id': case_id,
-            'name': data.get('case_name', data.get('original_filename', 'Unknown')),
+            'case_id':      case_id,
+            'name':         data.get('case_name', data.get('original_filename', 'Unknown')),
             'registered_at': data.get('registered_at', '—'),
-            'total_files': total,
-            'inventory': inv,
-            'status': 'Complete' if data.get('docket') else ('Processing' if data.get('results') else 'Ready'),
+            'total_files':  total,
+            'inventory':    inv,
+            'status':       status,
         })
 
-    # ── 2. Auto-generate cases from samples/ directory ─────────────────
+    # Auto-generate entries from samples/
     if os.path.isdir(SAMPLES_DIR):
         SKIP_PREFIXES = ('shielded_', 'temp')
         registered_primaries = {d.get('original_filename') for d in CASES.values()}
-
         for fname in sorted(os.listdir(SAMPLES_DIR)):
             if fname.startswith(SKIP_PREFIXES) or fname.startswith('.'):
                 continue
@@ -245,22 +238,20 @@ async def get_evidence_locker():
                 continue
             if fname in registered_primaries:
                 continue
-
             stat = os.stat(fpath)
             mtime = datetime.fromtimestamp(stat.st_mtime)
             cat = 'videos' if ext in VIDEO_EXTS else 'images'
             inv_dict = {'images': 0, 'videos': 0, 'audio': 0, 'documents': 0, 'chats': 0, 'unknown': 0}
             inv_dict[cat] = 1
             sample_case_id = f'SAMPLE-{hashlib.md5(fname.encode()).hexdigest()[:8].upper()}'
-
             entries.append({
-                'case_id': sample_case_id,
-                'name': fname,
+                'case_id':      sample_case_id,
+                'name':         fname,
                 'registered_at': mtime.strftime('%H:%M %d/%m/%Y'),
-                'total_files': 1,
-                'inventory': inv_dict,
-                'status': 'Ready',
-                '_locker_file': fpath,         # internal: used by investigation/start
+                'total_files':  1,
+                'inventory':    inv_dict,
+                'status':       'Ready',
+                '_locker_file':     fpath,
                 '_locker_filename': fname,
             })
 
@@ -269,14 +260,10 @@ async def get_evidence_locker():
 
 @router.post('/investigation/start', response_model=MultiAgentInvestigationResponse)
 async def start_investigation(req: InvestigationStartRequest):
-    """
-    Start full forensic investigation for a registered case.
-    Accepts either a CASE-* id (from /case/register) or a SAMPLE-* id (from the locker auto-entries).
-    """
+    """Start full multi-agent investigation for a registered or sample case."""
     case_id = req.case_id
 
     if case_id not in CASES:
-        # Try to resolve it as a SAMPLE- entry from the locker
         locker_data = await get_evidence_locker()
         import json as _json
         locker_json = _json.loads(locker_data.body)
@@ -286,8 +273,8 @@ async def start_investigation(req: InvestigationStartRequest):
             raise HTTPException(status_code=404, detail=f'Case not found: {case_id}')
 
         src_path = sample_entry['_locker_file']
-        fname = sample_entry['_locker_filename']
-        ext = get_file_extension(fname)
+        fname    = sample_entry['_locker_filename']
+        ext      = get_file_extension(fname)
         dest_dir = os.path.join(UPLOAD_DIR, case_id)
         os.makedirs(dest_dir, exist_ok=True)
         dest = os.path.join(dest_dir, fname)
@@ -302,20 +289,20 @@ async def start_investigation(req: InvestigationStartRequest):
         inv_dict[cat] = 1
 
         CASES[case_id] = {
-            'file_path': dest,
-            'is_video': is_video,
+            'file_path':         dest,
+            'is_video':          is_video,
             'original_filename': fname,
-            'file_bytes': file_bytes,
-            'sha256': hashlib.sha256(file_bytes).hexdigest(),
-            'metadata': {'filename': fname, 'size_bytes': len(file_bytes), 'is_video': is_video},
-            'results': None,
-            'docket': None,
-            'registered_at': sample_entry['registered_at'],
-            'case_name': fname,
-            'inventory': {cat: [dest], **{k: [] for k in inv_dict if k != cat}},
-            'inventory_schema': inv_dict,
-            'total_files': 1,
-            'status': 'Ready',
+            'file_bytes':        file_bytes,
+            'sha256':            hashlib.sha256(file_bytes).hexdigest(),
+            'metadata':          {'filename': fname, 'size_bytes': len(file_bytes), 'is_video': is_video},
+            'results':           None,
+            'docket':            None,
+            'registered_at':     sample_entry['registered_at'],
+            'case_name':         fname,
+            'inventory':         {cat: [dest], **{k: [] for k in inv_dict if k != cat}},
+            'inventory_schema':  inv_dict,
+            'total_files':       1,
+            'status':            'Ready',
         }
 
     CASES[case_id]['status'] = 'Processing'
@@ -326,6 +313,146 @@ async def start_investigation(req: InvestigationStartRequest):
     except Exception as e:
         CASES[case_id]['status'] = 'Error'
         raise HTTPException(status_code=500, detail=f'Investigation failed: {str(e)}')
+
+
+# ── SSE Streaming Investigation ───────────────────────────────────────────────
+
+@router.post('/investigation/stream')
+async def stream_investigation(req: StreamStartRequest):
+    """
+    Server-Sent Events endpoint — TRUE live streaming via event queue.
+    The pipeline runs in a background thread and pushes events onto a queue.Queue.
+    The async generator reads from that queue in real-time and streams them to the browser.
+
+    Events emitted:
+      - {"event": "start",         "data": {"case_id": "...", "timestamp": "..."}}
+      - {"event": "planner_step",  "data": {...}}
+      - {"event": "agent_start",   "data": {"agent": "...", "timestamp": "..."}}
+      - {"event": "agent_done",    "data": {...agent response...}}
+      - {"event": "hypothesis",    "data": {"authentic": 0.xx, "synthetic": 0.xx}}
+      - {"event": "graph_update",  "data": {"nodes": N, "edges": E, "entities": [...]}}
+      - {"event": "gap_analysis",  "data": {...gap output...}}
+      - {"event": "complete",      "data": {...full result...}}
+      - {"event": "error",         "data": {"message": "..."}}
+    """
+    case_id = req.case_id
+
+    async def event_generator() -> AsyncIterator[str]:
+        # Resolve / register the case
+        if case_id not in CASES:
+            locker_data = await get_evidence_locker()
+            locker_json = json.loads(locker_data.body)
+            sample_entry = next((c for c in locker_json['cases'] if c['case_id'] == case_id), None)
+
+            if not sample_entry or '_locker_file' not in sample_entry:
+                yield f"data: {json.dumps({'event': 'error', 'data': {'message': f'Case not found: {case_id}'}})}\n\n"
+                return
+
+            src_path = sample_entry['_locker_file']
+            fname    = sample_entry['_locker_filename']
+            ext      = get_file_extension(fname)
+            dest_dir = os.path.join(UPLOAD_DIR, case_id)
+            os.makedirs(dest_dir, exist_ok=True)
+            dest = os.path.join(dest_dir, fname)
+            shutil.copy2(src_path, dest)
+
+            with open(dest, 'rb') as f:
+                file_bytes = f.read()
+
+            is_video = ext in VIDEO_EXTS
+            cat = 'videos' if is_video else 'images'
+            inv_dict = {'images': 0, 'videos': 0, 'audio': 0, 'documents': 0, 'chats': 0, 'unknown': 0}
+            inv_dict[cat] = 1
+
+            CASES[case_id] = {
+                'file_path': dest, 'is_video': is_video,
+                'original_filename': fname, 'file_bytes': file_bytes,
+                'sha256': hashlib.sha256(file_bytes).hexdigest(),
+                'metadata': {'filename': fname, 'size_bytes': len(file_bytes), 'is_video': is_video},
+                'results': None, 'docket': None,
+                'registered_at': sample_entry['registered_at'],
+                'case_name': fname,
+                'inventory': {cat: [dest], **{k: [] for k in inv_dict if k != cat}},
+                'inventory_schema': inv_dict, 'total_files': 1, 'status': 'Ready',
+            }
+
+        CASES[case_id]['status'] = 'Processing'
+
+        # ── Live event queue: agents push events here during execution ────────
+        ev_queue: queue.Queue = queue.Queue()
+        loop = asyncio.get_event_loop()
+        result_holder: dict = {}
+        error_holder:  dict = {}
+        _SENTINEL = object()
+
+        def _run_pipeline_thread():
+            """Runs the blocking pipeline in a thread, pushing live events to ev_queue."""
+            try:
+                r = _run_pipeline_and_build_response(case_id, event_queue=ev_queue)
+                result_holder['result'] = r
+                CASES[case_id]['status'] = 'Complete'
+            except Exception as exc:
+                error_holder['error'] = str(exc)
+                CASES[case_id]['status'] = 'Error'
+            finally:
+                ev_queue.put(_SENTINEL)  # signal completion
+
+        # Emit start event immediately
+        yield f"data: {json.dumps({'event': 'start', 'data': {'case_id': case_id, 'timestamp': datetime.now().strftime('%H:%M:%S')}})}\n\n"
+
+        # Start pipeline in background thread
+        t = threading.Thread(target=_run_pipeline_thread, daemon=True)
+        t.start()
+
+        # Stream events from the queue in real-time as they arrive
+        while True:
+            try:
+                # Non-blocking poll so we can yield keepalives and stay async-friendly
+                item = await loop.run_in_executor(None, ev_queue.get, True, 0.25)
+            except Exception:
+                # Timeout — yield a keepalive comment and loop
+                yield ": keepalive\n\n"
+                continue
+
+            if item is _SENTINEL:
+                break
+
+            # Serialize and forward the live event
+            try:
+                yield f"data: {json.dumps(item)}\n\n"
+            except (TypeError, ValueError):
+                pass  # skip non-serialisable events
+
+        # Pipeline finished — emit error or complete
+        if error_holder:
+            yield f"data: {json.dumps({'event': 'error', 'data': {'message': error_holder['error']}})}\n\n"
+            return
+
+        result = result_holder.get('result')
+        if not result:
+            yield f"data: {json.dumps({'event': 'error', 'data': {'message': 'Pipeline returned no result'}})}\n\n"
+            return
+
+        result_dict = result.model_dump()
+
+        # Emit gap analysis as a dedicated event if not already streamed
+        gap_data = result_dict.get('evidence_gap', {}).get('output', {})
+        if gap_data:
+            yield f"data: {json.dumps({'event': 'gap_analysis', 'data': gap_data})}\n\n"
+            await asyncio.sleep(0.02)
+
+        # Final complete event with full result payload
+        yield f"data: {json.dumps({'event': 'complete', 'data': result_dict})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":               "no-cache",
+            "X-Accel-Buffering":           "no",
+            "Access-Control-Allow-Origin": "*",
+        }
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -351,20 +478,20 @@ async def upload_evidence(file: UploadFile = File(...)):
     metadata = {'filename': file.filename, 'size_bytes': len(file_bytes), 'is_video': is_video, 'mime_type': file.content_type}
 
     CASES[case_id] = {
-        'file_path': file_path,
-        'is_video': is_video,
-        'metadata': metadata,
-        'sha256': sha256_hash,
+        'file_path':         file_path,
+        'is_video':          is_video,
+        'metadata':          metadata,
+        'sha256':            sha256_hash,
         'original_filename': file.filename,
-        'file_bytes': file_bytes,
-        'results': None,
-        'docket': None,
-        'registered_at': datetime.now().strftime('%H:%M %d/%m/%Y'),
-        'case_name': file.filename,
-        'inventory': {cat: [file_path], **{k: [] for k in inv_dict if k != cat}},
-        'inventory_schema': inv_dict,
-        'total_files': 1,
-        'status': 'Ready',
+        'file_bytes':        file_bytes,
+        'results':           None,
+        'docket':            None,
+        'registered_at':     datetime.now().strftime('%H:%M %d/%m/%Y'),
+        'case_name':         file.filename,
+        'inventory':         {cat: [file_path], **{k: [] for k in inv_dict if k != cat}},
+        'inventory_schema':  inv_dict,
+        'total_files':       1,
+        'status':            'Ready',
     }
 
     return UploadResponse(case_id=case_id, sha256=sha256_hash, metadata=metadata)
@@ -392,7 +519,7 @@ async def get_graph(case_id: str):
     if case_id not in CASES or not CASES[case_id].get('results'):
         raise HTTPException(status_code=404, detail='Graph not found')
 
-    vision_res = CASES[case_id]['results'].get('vision', {}).get('output', {})
+    vision_res  = CASES[case_id]['results'].get('vision', {}).get('output', {})
     vlm_entities = vision_res.get('environmental_objects', [])
     nodes = [{'id': case_id, 'label': f'TARGET: {case_id}', 'type': 'case'}]
     edges = []
@@ -407,6 +534,7 @@ async def get_graph(case_id: str):
 @router.get('/health')
 async def system_health():
     gemini_status = 'online' if GEMINI_API_KEY else 'offline'
+    groq_status   = 'online' if os.getenv('GROQ_API_KEY') else 'offline'
     return JSONResponse(content={
         'agents': [
             {'name': 'Investigation Orchestrator', 'status': 'online'},
@@ -417,6 +545,12 @@ async def system_health():
             {'name': 'Vision Intelligence',        'status': gemini_status},
             {'name': 'Intelligence Fusion',        'status': 'online'},
             {'name': 'Knowledge Graph',            'status': 'online'},
+            {'name': 'Risk Assessment',            'status': 'online'},
+            {'name': 'Evidence Gap Agent',         'status': 'online'},
             {'name': 'Legal Reasoning',            'status': 'online'},
-        ]
+        ],
+        'providers': {
+            'groq':   groq_status,
+            'gemini': gemini_status,
+        }
     })

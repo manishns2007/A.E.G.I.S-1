@@ -12,8 +12,13 @@ class InvestigationContext:
     """
     Shared memory object carrying case state, evidence, hashes, per-agent outputs,
     hypotheses, confidence evolution, timeline, and accumulated reasoning chains.
+
+    The optional ``event_queue`` (a queue.Queue) enables real-time SSE streaming:
+    agents and the planner push JSON-serialisable dicts to this queue; the SSE
+    endpoint in routes.py reads them and forwards them to the browser.
     """
-    def __init__(self, case_id: str, file_path: str, is_video: bool, original_filename: str, file_bytes: bytes):
+    def __init__(self, case_id: str, file_path: str, is_video: bool, original_filename: str, file_bytes: bytes,
+                 event_queue=None):
         self.case_id = case_id
         self.file_path = file_path
         self.is_video = is_video
@@ -21,26 +26,40 @@ class InvestigationContext:
         self.file_bytes = file_bytes
         self.sha256: str = ""
         self.metadata: Dict[str, Any] = {}
-        
+
         # Shared media buffers
         self.img_bgr: Optional[np.ndarray] = None
         self.shielded_bgr: Optional[np.ndarray] = None
         self.shielded_vid_path: Optional[str] = None
-        
+
         # Agent outputs map: agent_name -> Standard Agent Response Dict
         self.agent_results: Dict[str, Dict[str, Any]] = {}
-        
+
         # Unified investigation reasoning chain
         self.reasoning_chain: List[str] = []
-        
+
         # Intermediate outputs
         self.fusion_output: Dict[str, Any] = {}
         self.knowledge_graph_fig: Optional[Dict[str, Any]] = None
         self.legal_docket: Optional[Dict[str, Any]] = None
 
+        # SSE event queue (optional — only set during streaming mode)
+        self.event_queue = event_queue  # queue.Queue | None
+
+    def emit(self, event_type: str, data: Dict[str, Any]):
+        """Push an SSE event to the queue if streaming mode is active."""
+        if self.event_queue is not None:
+            try:
+                self.event_queue.put_nowait({"event": event_type, "data": data})
+            except Exception:
+                pass
+
     def add_reasoning(self, agent_name: str, message: str):
         entry = f"[{agent_name.upper()}] {message}"
         self.reasoning_chain.append(entry)
+        # Emit reasoning step as log event for live terminal
+        self.emit("log", {"agent": agent_name, "message": message})
+
 
 
 class BaseAgent(ABC):
