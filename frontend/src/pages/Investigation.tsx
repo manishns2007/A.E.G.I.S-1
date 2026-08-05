@@ -15,7 +15,7 @@ import {
   AlertCircle, ArrowRight, Layers, Target,
 } from 'lucide-react';
 import {
-  streamInvestigation, startInvestigation,
+  streamInvestigation, startInvestigation, getLockerCases,
   type MultiAgentInvestigationResponse,
   type PlannerStep,
   type ConfidencePoint,
@@ -401,32 +401,56 @@ const InvestigationWorkspace = () => {
 
   // ── Auto-start on mount ─────────────────────────────────────────────────
   useEffect(() => {
-    const caseId = state?.caseId;
-    if (!caseId) {
-      setError('No case ID provided. Return to workspace and select a case.');
-      return;
+    let cleanupFn: (() => void) | undefined;
+    let isCancelled = false;
+
+    const runStream = (cid: string) => {
+      setIsRunning(true);
+      setOrchestratorStatus('Connecting to AEGIS pipeline…');
+
+      cleanupFn = streamInvestigation(
+        cid,
+        processEvent,
+        (err) => {
+          console.error('SSE error', err);
+          setOrchestratorStatus('Streaming unavailable — running blocking investigation…');
+          startInvestigation(cid).then(r => {
+            if (!isCancelled) processEvent({ event: 'complete', data: r });
+          }).catch(e => {
+            if (!isCancelled) {
+              setError(String(e?.message ?? e));
+              setIsRunning(false);
+            }
+          });
+        }
+      );
+    };
+
+    if (state?.caseId) {
+      runStream(state.caseId);
+    } else {
+      // Auto-fetch latest case from evidence locker if no caseId passed in router state
+      getLockerCases().then(data => {
+        if (isCancelled) return;
+        if (data && data.length > 0) {
+          const firstCase = data[0];
+          runStream(firstCase.case_id);
+        } else {
+          setError('No case selected. Return to workspace and register or select a case.');
+          setIsRunning(false);
+        }
+      }).catch(() => {
+        if (!isCancelled) {
+          setError('No case selected. Return to workspace and register or select a case.');
+          setIsRunning(false);
+        }
+      });
     }
 
-    setIsRunning(true);
-    setOrchestratorStatus('Connecting to A.E.G.I.S. pipeline…');
-
-    const cleanup = streamInvestigation(
-      caseId,
-      processEvent,
-      (err) => {
-        console.error('SSE error', err);
-        // Fallback to blocking call
-        setOrchestratorStatus('Streaming unavailable — running blocking investigation…');
-        startInvestigation(caseId).then(r => {
-          processEvent({ event: 'complete', data: r });
-        }).catch(e => {
-          setError(String(e?.message ?? e));
-          setIsRunning(false);
-        });
-      }
-    );
-
-    return cleanup;
+    return () => {
+      isCancelled = true;
+      if (cleanupFn) cleanupFn();
+    };
   }, [state?.caseId, processEvent]);
 
   // ── Scroll log on new entries ───────────────────────────────────────────

@@ -407,10 +407,9 @@ async def stream_investigation(req: StreamStartRequest):
         # Stream events from the queue in real-time as they arrive
         while True:
             try:
-                # Non-blocking poll so we can yield keepalives and stay async-friendly
-                item = await loop.run_in_executor(None, ev_queue.get, True, 0.25)
-            except Exception:
-                # Timeout — yield a keepalive comment and loop
+                item = ev_queue.get_nowait()
+            except queue.Empty:
+                await asyncio.sleep(0.1)
                 yield ": keepalive\n\n"
                 continue
 
