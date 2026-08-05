@@ -16,7 +16,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from pydantic import BaseModel
 from typing import Optional, AsyncIterator
 
@@ -554,3 +554,18 @@ async def system_health():
             'gemini': gemini_status,
         }
     })
+
+@router.get('/files/{case_id}/{filename}')
+async def get_case_file(case_id: str, filename: str):
+    """Serve media files (like shielded images) from a case directory."""
+    # First check UPLOAD_DIR
+    file_path = os.path.join(UPLOAD_DIR, case_id, filename)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    
+    # Check SAMPLES_DIR (for sample cases)
+    file_path = os.path.join(SAMPLES_DIR, filename)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+        
+    raise HTTPException(status_code=404, detail='File not found')

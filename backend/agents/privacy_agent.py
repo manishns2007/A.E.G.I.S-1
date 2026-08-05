@@ -47,6 +47,13 @@ class PrivacyShieldAgent(BaseAgent):
                     rec_next = ["CornealTopologyAgent", "VisionIntelligenceAgent"]
                 reasoning.append("Generated investigator-safe privacy-redacted image buffer.")
 
+                # Save the shielded image so the frontend can display it
+                case_dir = os.path.dirname(context.file_path)
+                shielded_filename = f"shielded_{os.path.basename(context.file_path)}"
+                out_img_path = os.path.join(case_dir, shielded_filename)
+                cv2.imwrite(out_img_path, shielded_bgr)
+                shielded_url = f"/api/files/{context.case_id}/{shielded_filename}"
+
                 context.add_reasoning(self.name, f"Privacy Shield complete. {face_count} face(s) redacted.")
 
                 output = {
@@ -54,7 +61,8 @@ class PrivacyShieldAgent(BaseAgent):
                     "bboxes": bboxes,
                     "redaction_applied": face_count > 0,
                     "shielded_video_path": None,
-                    "verdict_text": f"REDATION COMPLETE ({face_count} SUBJECTS)" if face_count > 0 else "NO SUBJECTS DETECTED"
+                    "shielded_image_url": shielded_url,
+                    "verdict_text": f"REDACTION COMPLETE ({face_count} SUBJECTS)" if face_count > 0 else "NO SUBJECTS DETECTED"
                 }
                 confidence = 98.0 if face_count > 0 else 99.5
 
@@ -79,6 +87,13 @@ class PrivacyShieldAgent(BaseAgent):
                 reasoning.append(f"Processed video stream frame-by-frame. {face_count} human subject instance(s) redacted.")
                 reasoning.append(f"Investigator-safe video rendered to: {os.path.basename(out_vid)}")
 
+                # Also save the first shielded frame for thumbnail preview
+                case_dir = os.path.dirname(context.file_path)
+                shielded_filename = f"shielded_thumb_{os.path.basename(context.file_path)}.jpg"
+                out_img_path = os.path.join(case_dir, shielded_filename)
+                cv2.imwrite(out_img_path, context.shielded_bgr)
+                shielded_url = f"/api/files/{context.case_id}/{shielded_filename}"
+
                 context.add_reasoning(self.name, f"Video Privacy Shield complete. {face_count} subject(s) redacted.")
 
                 rec_next = ["ENFPhysicsAgent"]
@@ -87,6 +102,7 @@ class PrivacyShieldAgent(BaseAgent):
                     "count": face_count,
                     "redaction_applied": face_count > 0,
                     "shielded_video_path": out_vid,
+                    "shielded_image_url": shielded_url,
                     "verdict_text": f"VIDEO REDACTION COMPLETE ({face_count} INSTANCES)" if face_count > 0 else "NO SUBJECTS DETECTED"
                 }
                 confidence = 95.0

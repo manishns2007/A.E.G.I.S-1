@@ -206,7 +206,6 @@ const InvestigationWorkspace = () => {
   // ── Log stream ──────────────────────────────────────────────────────────
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
-  const hasStarted = useRef(false);
 
   // ── Hypothesis evolution ────────────────────────────────────────────────
   const [confidenceHistory, setConfidenceHistory] = useState<ConfidencePoint[]>([]);
@@ -402,9 +401,6 @@ const InvestigationWorkspace = () => {
 
   // ── Auto-start on mount ─────────────────────────────────────────────────
   useEffect(() => {
-    if (hasStarted.current) return;
-    hasStarted.current = true;
-
     const caseId = state?.caseId;
     if (!caseId) {
       setError('No case ID provided. Return to workspace and select a case.');
@@ -480,6 +476,23 @@ const InvestigationWorkspace = () => {
               <span className="text-xs text-textMain font-mono truncate max-w-[120px] text-right">{value ?? '—'}</span>
             </div>
           ))}
+
+          {/* Shielded Preview */}
+          {result?.privacy?.output?.shielded_image_url && (
+            <div className="mt-3 overflow-hidden rounded-lg border border-primary/20 bg-black">
+              <img
+                src={`http://localhost:8000${result.privacy.output.shielded_image_url}`}
+                alt="Privacy Shielded Preview"
+                className="w-full h-auto object-contain opacity-90 hover:opacity-100 transition-opacity max-h-48"
+              />
+              <div className="bg-primary/10 p-1.5 text-center border-t border-primary/20">
+                <span className="text-[10px] font-mono text-primary uppercase tracking-widest flex items-center justify-center gap-1.5">
+                  <Shield className="w-3 h-3" />
+                  Investigator Safe View
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
