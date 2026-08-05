@@ -98,13 +98,26 @@ class LangGraphEngine:
         """Dynamic Supervisor: reads InvestigationState and selects the next agent."""
         provider = ProviderFactory.get_provider()
         ctx: InvestigationContext = state["context"]
+        completed = set(state.get("completed_agents", []))
+        skipped   = set(state.get("skipped_agents", []))
+        planner_steps = list(state.get("planner_reasoning", []))
 
-        try:
-            next_agent, planner_output, _raw = provider.plan_next_agent(state)
-        except Exception as e:
+        # Safeguard: if max planning steps reached or LLM loops, use procedural state engine
+        if len(planner_steps) >= 12:
             fallback = ProceduralFallbackProvider()
             next_agent, planner_output, _raw = fallback.plan_next_agent(state)
-            planner_output["_provider_error"] = str(e)
+        else:
+            try:
+                next_agent, planner_output, _raw = provider.plan_next_agent(state)
+            except Exception as e:
+                fallback = ProceduralFallbackProvider()
+                next_agent, planner_output, _raw = fallback.plan_next_agent(state)
+                planner_output["_provider_error"] = str(e)
+
+            # Prevent re-dispatching an agent that has ALREADY completed or skipped
+            if next_agent in self.agents_map and (next_agent in completed or next_agent in skipped):
+                fallback = ProceduralFallbackProvider()
+                next_agent, planner_output, _raw = fallback.plan_next_agent(state)
 
         # Build human-readable reasoning chain entries
         current_goal    = planner_output.get("current_goal",        "Investigate evidence")
