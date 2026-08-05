@@ -14,7 +14,7 @@ SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "samples")
 def ensure_sample_dir():
     os.makedirs(SAMPLE_DIR, exist_ok=True)
 
-def generate_enf_video(is_authentic: bool, output_path: str, duration_sec: float = 3.0, fps: float = 30.0):
+def generate_enf_video(is_authentic: bool, output_path: str, duration_sec: float = 10.0, fps: float = 30.0):
     """
     Generates a sample video for ENF testing.
     Authentic video has a 50 Hz luminance signal embedded in the frame sequence.
