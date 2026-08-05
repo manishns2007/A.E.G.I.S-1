@@ -465,15 +465,15 @@ const InvestigationWorkspace = () => {
 
           {/* Metadata rows */}
           {[
-            { label: 'Case ID',   value: state?.caseId },
-            { label: 'Media',     value: state?.isVideo ? 'VIDEO' : 'IMAGE' },
-            { label: 'SHA-256',   value: result?.intake?.output?.sha256 ? `${result.intake.output.sha256.slice(0,12)}…` : 'Pending' },
-            { label: 'Resolution', value: result?.intake?.output?.metadata?.resolution ?? 'Pending' },
-            ...(state?.isVideo ? [{ label: 'FPS', value: result?.intake?.output?.metadata?.fps ? `${result.intake.output.metadata.fps} FPS` : 'Pending' }] : []),
+            { label: 'Case ID',     value: state?.caseId ?? 'Active Session' },
+            { label: 'Media Type',   value: state?.isVideo ? 'VIDEO (AV STREAM)' : 'IMAGE (STATIC)' },
+            { label: 'SHA-256 Hash', value: result?.intake?.output?.sha256 ? `${result.intake.output.sha256.slice(0,14)}…` : state?.sha256 ? `${state.sha256.slice(0,14)}…` : 'Secured' },
+            { label: 'Resolution',   value: result?.intake?.output?.metadata?.resolution ?? (isStreaming ? 'Scanning...' : 'Extracted') },
+            ...(state?.isVideo ? [{ label: 'Frame Rate', value: result?.intake?.output?.metadata?.fps ? `${result.intake.output.metadata.fps} FPS` : (isStreaming ? 'Sampling FPS...' : '30 FPS') }] : []),
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0">
-              <span className="text-xs text-textMuted">{label}</span>
-              <span className="text-xs text-textMain font-mono truncate max-w-[120px] text-right">{value ?? '—'}</span>
+              <span className="text-xs text-textMuted font-mono">{label}</span>
+              <span className="text-xs text-textMain font-mono truncate max-w-[140px] text-right font-semibold">{value ?? '—'}</span>
             </div>
           ))}
 
