@@ -198,6 +198,7 @@ const InvestigationWorkspace = () => {
   // ── Live planner ────────────────────────────────────────────────────────
   const [plannerSteps, setPlannerSteps] = useState<PlannerStep[]>([]);
   const [currentPlannerStep, setCurrentPlannerStep] = useState<PlannerStep | null>(null);
+  const [activeMediaIdx, setActiveMediaIdx] = useState(0);
 
   // ── Agent statuses ──────────────────────────────────────────────────────
   const [agentStatuses, setAgentStatuses] = useState<Record<string, AgentStatus>>(
@@ -502,28 +503,55 @@ const InvestigationWorkspace = () => {
             </div>
           ))}
 
-          {/* Shielded Preview */}
-          {result?.privacy?.output?.shielded_image_url && (
-            <div className="mt-3 overflow-hidden rounded-lg border border-primary/20 bg-black">
-              <img
-                src={
-                  result.privacy.output.shielded_image_url.startsWith('http')
-                    ? result.privacy.output.shielded_image_url
-                    : `http://localhost:8000${result.privacy.output.shielded_image_url.startsWith('/') ? '' : '/'}${result.privacy.output.shielded_image_url}`
-                }
-                alt="Privacy Shielded Preview"
-                className="w-full h-auto object-contain opacity-90 hover:opacity-100 transition-opacity max-h-48"
-                onError={(e) => {
-                  // Fallback to sample image if file is not found
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-              <div className="bg-primary/10 p-1.5 text-center border-t border-primary/20">
-                <span className="text-[10px] font-mono text-primary uppercase tracking-widest flex items-center justify-center gap-1.5">
-                  <Shield className="w-3 h-3" />
-                  Investigator Safe View
-                </span>
-              </div>
+          {/* Shielded Preview with Multi-File Switcher for Case Packages */}
+          {result?.privacy?.output && (
+            <div className="mt-3 overflow-hidden rounded-lg border border-primary/20 bg-black p-2">
+              {/* Media Switcher Tabs if package has multiple files */}
+              {result.privacy.output.all_shielded_media && result.privacy.output.all_shielded_media.length > 1 && (
+                <div className="flex gap-1 overflow-x-auto pb-2 mb-2 border-b border-border/40">
+                  {result.privacy.output.all_shielded_media.map((m: any, idx: number) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveMediaIdx(idx)}
+                      className={`px-2 py-1 rounded text-[10px] font-mono truncate max-w-[120px] transition-all border ${
+                        activeMediaIdx === idx
+                          ? 'bg-primary/20 text-primary border-primary/40 font-bold'
+                          : 'bg-surface text-textMuted border-border/50 hover:text-textMain'
+                      }`}
+                    >
+                      {m.type === 'video' ? '🎬' : '📷'} {m.filename}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {(() => {
+                const mediaList = result.privacy.output.all_shielded_media || [];
+                const currentMedia = mediaList[activeMediaIdx] || { shielded_url: result.privacy.output.shielded_image_url };
+                const rawUrl = currentMedia.shielded_url || result.privacy.output.shielded_image_url;
+                const fullUrl = rawUrl.startsWith('http')
+                  ? rawUrl
+                  : `http://localhost:8000${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+
+                return (
+                  <div>
+                    <img
+                      src={fullUrl}
+                      alt="Privacy Shielded Preview"
+                      className="w-full h-auto object-contain opacity-90 hover:opacity-100 transition-opacity max-h-52 rounded"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                    <div className="bg-primary/10 p-1.5 text-center border-t border-primary/20 mt-2 rounded-b">
+                      <span className="text-[10px] font-mono text-primary uppercase tracking-widest flex items-center justify-center gap-1.5">
+                        <Shield className="w-3 h-3" />
+                        Investigator Safe View {currentMedia.filename ? `· ${currentMedia.filename}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

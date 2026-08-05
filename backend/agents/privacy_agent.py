@@ -107,6 +107,43 @@ class PrivacyShieldAgent(BaseAgent):
                 }
                 confidence = 95.0
 
+            # ── Multi-File Package Scanner for ZIP Evidence Packages ──
+            all_shielded_media = []
+            
+            # Primary media
+            all_shielded_media.append({
+                "filename": os.path.basename(context.file_path),
+                "type": "video" if context.is_video else "image",
+                "shielded_url": shielded_url,
+                "is_primary": True
+            })
+
+            case_dir = os.path.dirname(context.file_path)
+            if os.path.isdir(case_dir):
+                for fname in sorted(os.listdir(case_dir)):
+                    if fname.startswith("shielded_") or fname.startswith(".") or fname == os.path.basename(context.file_path):
+                        continue
+                    ext = os.path.splitext(fname)[1].lower()
+                    fpath = os.path.join(case_dir, fname)
+                    
+                    if ext in ('.jpg', '.jpeg', '.png', '.bmp', '.webp'):
+                        img_arr = cv2.imread(fpath)
+                        if img_arr is not None:
+                            sh_bgr, fc, _ = privacy_shield.apply_privacy_shield_to_image(img_arr)
+                            sh_fname = f"shielded_{fname}"
+                            sh_path = os.path.join(case_dir, sh_fname)
+                            cv2.imwrite(sh_path, sh_bgr)
+                            all_shielded_media.append({
+                                "filename": fname,
+                                "type": "image",
+                                "shielded_url": f"/api/files/{context.case_id}/{sh_fname}",
+                                "is_primary": False,
+                                "face_count": fc
+                            })
+                            reasoning.append(f"Package evidence '{fname}': Redacted {fc} subject(s).")
+
+            output["all_shielded_media"] = all_shielded_media
+
             return self.format_response(
                 status="completed",
                 processing_time=time.time() - start,
